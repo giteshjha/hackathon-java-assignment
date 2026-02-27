@@ -3,9 +3,13 @@ package com.fulfilment.application.monolith.warehouses.adapters.database;
 import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class WarehouseRepository implements WarehouseStore, PanacheRepository<DbWarehouse> {
@@ -60,5 +64,40 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
   public Warehouse findByBusinessUnitCode(String buCode) {
     DbWarehouse dbWarehouse = find("businessUnitCode", buCode).firstResult();
     return dbWarehouse != null ? dbWarehouse.toWarehouse() : null;
+  }
+
+  @Transactional
+  public List<Warehouse> searchActive(
+      String location,
+      Integer minCapacity,
+      Integer maxCapacity,
+      String sortBy,
+      String sortOrder,
+      int page,
+      int pageSize) {
+    StringBuilder query = new StringBuilder("archivedAt is null");
+    Map<String, Object> params = new HashMap<>();
+
+    if (location != null) {
+      query.append(" and location = :location");
+      params.put("location", location);
+    }
+    if (minCapacity != null) {
+      query.append(" and capacity >= :minCapacity");
+      params.put("minCapacity", minCapacity);
+    }
+    if (maxCapacity != null) {
+      query.append(" and capacity <= :maxCapacity");
+      params.put("maxCapacity", maxCapacity);
+    }
+
+    Sort sort = "capacity".equals(sortBy) ? Sort.by("capacity") : Sort.by("createdAt");
+    if ("desc".equals(sortOrder)) {
+      sort = sort.descending();
+    }
+
+    var panacheQuery = find(query.toString(), sort, params);
+    panacheQuery.page(Page.of(page, pageSize));
+    return panacheQuery.list().stream().map(DbWarehouse::toWarehouse).toList();
   }
 }
