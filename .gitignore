@@ -8,7 +8,8 @@
 /dataSources.local.xml
 # Editor-based HTTP Client requests
 /httpRequests/
-
+# Compiled class files
+*.class
 # Maven / Quarkus build output
 target/
 **/target/
@@ -19,6 +20,15 @@ target/
 # IntelliJ
 .idea/
 *.iml
+
+# logs
+*.log
+
+# quarkus dev
+.quarkus/
+
+# env
+.env
 
 # macOS
 .DS_Store

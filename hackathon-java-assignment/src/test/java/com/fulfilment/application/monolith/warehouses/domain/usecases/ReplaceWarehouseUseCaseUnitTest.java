@@ -6,85 +6,105 @@ import com.fulfilment.application.monolith.warehouses.domain.models.Location;
 import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.ports.LocationResolver;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class CreateWarehouseUseCaseTest {
+class ReplaceWarehouseUseCaseUnitTest {
 
   private InMemoryWarehouseStore warehouseStore;
   private InMemoryLocationResolver locationResolver;
-  private CreateWarehouseUseCase useCase;
+  private ReplaceWarehouseUseCase useCase;
 
   @BeforeEach
   void setup() {
     warehouseStore = new InMemoryWarehouseStore();
     locationResolver = new InMemoryLocationResolver();
-    useCase = new CreateWarehouseUseCase(warehouseStore, locationResolver);
+    useCase = new ReplaceWarehouseUseCase(warehouseStore, locationResolver);
   }
 
   @Test
-  void createSucceedsWhenInputIsValid() {
-    Warehouse warehouse = warehouse("WH-001", "AMSTERDAM-001", 50, 10);
+  void replaceSucceedsForValidInput() {
+    warehouseStore.create(warehouse("WH-001", "AMSTERDAM-001", 50, 10, null));
+    Warehouse replacement = warehouse("WH-001", "ZWOLLE-001", 40, 20, null);
 
-    useCase.create(warehouse);
+    useCase.replace(replacement);
 
-    Warehouse saved = warehouseStore.findByBusinessUnitCode("WH-001");
-    assertNotNull(saved);
-    assertEquals("AMSTERDAM-001", saved.location);
-    assertEquals(50, saved.capacity);
-    assertEquals(10, saved.stock);
-    assertNotNull(saved.createdAt);
+    Warehouse updated = warehouseStore.findByBusinessUnitCode("WH-001");
+    assertEquals("ZWOLLE-001", updated.location);
+    assertEquals(40, updated.capacity);
+    assertEquals(20, updated.stock);
   }
 
   @Test
-  void createFailsWhenBusinessUnitCodeAlreadyExists() {
-    warehouseStore.create(warehouse("WH-001", "AMSTERDAM-001", 50, 10));
-    Warehouse duplicate = warehouse("WH-001", "AMSTERDAM-001", 30, 5);
+  void replaceFailsWhenWarehouseDoesNotExist() {
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> useCase.replace(warehouse("WH-404", "AMSTERDAM-001", 30, 5, null)));
+
+    assertTrue(exception.getMessage().contains("does not exist"));
+  }
+
+  @Test
+  void replaceFailsWhenWarehouseIsArchived() {
+    warehouseStore.create(
+        warehouse("WH-001", "AMSTERDAM-001", 50, 10, LocalDateTime.now().minusDays(1)));
 
     IllegalArgumentException exception =
-        assertThrows(IllegalArgumentException.class, () -> useCase.create(duplicate));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> useCase.replace(warehouse("WH-001", "ZWOLLE-001", 30, 5, null)));
 
-    assertTrue(exception.getMessage().contains("already exists"));
+    assertTrue(exception.getMessage().contains("is archived"));
   }
 
   @Test
-  void createFailsWhenLocationIsInvalid() {
-    Warehouse warehouse = warehouse("WH-001", "UNKNOWN-001", 30, 5);
+  void replaceFailsWhenLocationIsInvalid() {
+    warehouseStore.create(warehouse("WH-001", "AMSTERDAM-001", 50, 10, null));
 
     IllegalArgumentException exception =
-        assertThrows(IllegalArgumentException.class, () -> useCase.create(warehouse));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> useCase.replace(warehouse("WH-001", "UNKNOWN-001", 30, 5, null)));
 
     assertTrue(exception.getMessage().contains("is not valid"));
   }
 
   @Test
-  void createFailsWhenCapacityExceedsLocationLimit() {
-    Warehouse warehouse = warehouse("WH-001", "ZWOLLE-001", 41, 5);
+  void replaceFailsWhenCapacityExceedsLocationLimit() {
+    warehouseStore.create(warehouse("WH-001", "AMSTERDAM-001", 50, 10, null));
 
     IllegalArgumentException exception =
-        assertThrows(IllegalArgumentException.class, () -> useCase.create(warehouse));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> useCase.replace(warehouse("WH-001", "ZWOLLE-001", 41, 5, null)));
 
     assertTrue(exception.getMessage().contains("exceeds location max capacity"));
   }
 
   @Test
-  void createFailsWhenStockExceedsWarehouseCapacity() {
-    Warehouse warehouse = warehouse("WH-001", "AMSTERDAM-001", 30, 31);
+  void replaceFailsWhenStockExceedsCapacity() {
+    warehouseStore.create(warehouse("WH-001", "AMSTERDAM-001", 50, 10, null));
 
     IllegalArgumentException exception =
-        assertThrows(IllegalArgumentException.class, () -> useCase.create(warehouse));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> useCase.replace(warehouse("WH-001", "ZWOLLE-001", 30, 31, null)));
 
     assertTrue(exception.getMessage().contains("exceeds warehouse capacity"));
   }
 
-  private Warehouse warehouse(String code, String location, int capacity, int stock) {
+  private Warehouse warehouse(
+      String code, String location, int capacity, int stock, LocalDateTime archivedAt) {
     Warehouse warehouse = new Warehouse();
     warehouse.businessUnitCode = code;
     warehouse.location = location;
     warehouse.capacity = capacity;
     warehouse.stock = stock;
+    warehouse.archivedAt = archivedAt;
     return warehouse;
   }
 
@@ -116,7 +136,13 @@ class CreateWarehouseUseCaseTest {
 
     @Override
     public void update(Warehouse warehouse) {
-      throw new UnsupportedOperationException("Not used in this test");
+      for (int i = 0; i < warehouses.size(); i++) {
+        if (warehouse.businessUnitCode.equals(warehouses.get(i).businessUnitCode)) {
+          warehouses.set(i, copyOf(warehouse));
+          return;
+        }
+      }
+      throw new IllegalArgumentException("Warehouse not found");
     }
 
     @Override
@@ -139,7 +165,6 @@ class CreateWarehouseUseCaseTest {
       copy.location = warehouse.location;
       copy.capacity = warehouse.capacity;
       copy.stock = warehouse.stock;
-      copy.createdAt = warehouse.createdAt;
       copy.archivedAt = warehouse.archivedAt;
       return copy;
     }
