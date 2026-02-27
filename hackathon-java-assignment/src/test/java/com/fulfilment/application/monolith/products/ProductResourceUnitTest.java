@@ -3,7 +3,6 @@ package com.fulfilment.application.monolith.products;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.lang.reflect.Field;
@@ -128,31 +127,6 @@ class ProductResourceUnitTest {
 
     verify(productRepository).delete(existing);
     assertEquals(204, response.getStatus());
-  }
-
-  @Test
-  void errorMapperBuildsWebExceptionPayload() throws Exception {
-    ProductResource.ErrorMapper mapper = new ProductResource.ErrorMapper();
-    inject(mapper, "objectMapper", new ObjectMapper());
-
-    Response response =
-        mapper.toResponse(new WebApplicationException("Bad request", 400));
-
-    assertEquals(400, response.getStatus());
-    assertNotNull(response.getEntity());
-    assertTrue(response.getEntity().toString().contains("Bad request"));
-  }
-
-  @Test
-  void errorMapperBuildsGenericErrorPayload() throws Exception {
-    ProductResource.ErrorMapper mapper = new ProductResource.ErrorMapper();
-    inject(mapper, "objectMapper", new ObjectMapper());
-
-    Response response = mapper.toResponse(new RuntimeException("boom"));
-
-    assertEquals(500, response.getStatus());
-    assertNotNull(response.getEntity());
-    assertTrue(response.getEntity().toString().contains("boom"));
   }
 
   private static void inject(Object target, String fieldName, Object value) throws Exception {

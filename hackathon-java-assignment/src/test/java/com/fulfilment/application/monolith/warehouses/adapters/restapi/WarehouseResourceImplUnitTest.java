@@ -10,6 +10,7 @@ import com.fulfilment.application.monolith.warehouses.domain.ports.ReplaceWareho
 import com.warehouse.api.beans.Warehouse;
 import jakarta.ws.rs.WebApplicationException;
 import java.lang.reflect.Field;
+import java.math.BigInteger;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -145,6 +146,92 @@ class WarehouseResourceImplUnitTest {
         assertThrows(
             WebApplicationException.class,
             () -> resource.replaceTheCurrentActiveWarehouse("WH-001", payload));
+
+    assertEquals(400, exception.getResponse().getStatus());
+  }
+
+  @Test
+  void searchReturnsMappedResultsUsingDefaults() {
+    com.fulfilment.application.monolith.warehouses.domain.models.Warehouse domain =
+        domain("WH-001", "ZWOLLE-001", 100, 10);
+    when(warehouseRepository.searchActive(null, null, null, "createdAt", "asc", 0, 10))
+        .thenReturn(List.of(domain));
+
+    List<Warehouse> response =
+        resource.searchWarehouses(null, null, null, null, null, null, null);
+
+    assertEquals(1, response.size());
+    assertEquals("WH-001", response.get(0).getBusinessUnitCode());
+  }
+
+  @Test
+  void searchRejectsUnsupportedSortBy() {
+    WebApplicationException exception =
+        assertThrows(
+            WebApplicationException.class,
+            () ->
+                resource.searchWarehouses(
+                    null, null, null, "name", "asc", BigInteger.ZERO, BigInteger.TEN));
+
+    assertEquals(400, exception.getResponse().getStatus());
+  }
+
+  @Test
+  void searchRejectsInvalidSortOrder() {
+    WebApplicationException exception =
+        assertThrows(
+            WebApplicationException.class,
+            () ->
+                resource.searchWarehouses(
+                    null, null, null, "createdAt", "up", BigInteger.ZERO, BigInteger.TEN));
+
+    assertEquals(400, exception.getResponse().getStatus());
+  }
+
+  @Test
+  void searchRejectsNegativePage() {
+    WebApplicationException exception =
+        assertThrows(
+            WebApplicationException.class,
+            () ->
+                resource.searchWarehouses(
+                    null, null, null, "createdAt", "asc", BigInteger.valueOf(-1), BigInteger.TEN));
+
+    assertEquals(400, exception.getResponse().getStatus());
+  }
+
+  @Test
+  void searchRejectsInvalidCapacityRange() {
+    WebApplicationException exception =
+        assertThrows(
+            WebApplicationException.class,
+            () ->
+                resource.searchWarehouses(
+                    null,
+                    BigInteger.valueOf(10),
+                    BigInteger.valueOf(5),
+                    "createdAt",
+                    "asc",
+                    BigInteger.ZERO,
+                    BigInteger.TEN));
+
+    assertEquals(400, exception.getResponse().getStatus());
+  }
+
+  @Test
+  void searchRejectsValuesOutsideIntegerRange() {
+    WebApplicationException exception =
+        assertThrows(
+            WebApplicationException.class,
+            () ->
+                resource.searchWarehouses(
+                    null,
+                    null,
+                    null,
+                    "createdAt",
+                    "asc",
+                    BigInteger.valueOf(Integer.MAX_VALUE).add(BigInteger.ONE),
+                    BigInteger.TEN));
 
     assertEquals(400, exception.getResponse().getStatus());
   }
