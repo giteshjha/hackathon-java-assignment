@@ -7,6 +7,7 @@ import com.fulfilment.application.monolith.warehouses.domain.usecases.CreateWare
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.transaction.Transactional.TxType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -141,15 +142,9 @@ public class WarehouseConcurrencyIT {
    * Test concurrent reads don't block each other (read scalability).
    */
   @Test
-  @Transactional
   public void testConcurrentReadsAreNonBlocking() throws InterruptedException {
-    // Create a warehouse first
-    Warehouse warehouse = new Warehouse();
-    warehouse.businessUnitCode = "READ-TEST-001";
-    warehouse.location = "AMSTERDAM-001";
-    warehouse.capacity = 100;
-    warehouse.stock = 50;
-    createWarehouseUseCase.create(warehouse);
+    // Commit test data before concurrent readers run.
+    createWarehouseForReadTest();
     
     int readThreadCount = 20;
     ExecutorService executor = Executors.newFixedThreadPool(readThreadCount);
@@ -175,5 +170,15 @@ public class WarehouseConcurrencyIT {
     
     // All reads should succeed
     assertEquals(readThreadCount, successfulReads.get(), "All concurrent reads should succeed");
+  }
+
+  @Transactional(TxType.REQUIRES_NEW)
+  void createWarehouseForReadTest() {
+    Warehouse warehouse = new Warehouse();
+    warehouse.businessUnitCode = "READ-TEST-001";
+    warehouse.location = "AMSTERDAM-001";
+    warehouse.capacity = 100;
+    warehouse.stock = 50;
+    createWarehouseUseCase.create(warehouse);
   }
 }
