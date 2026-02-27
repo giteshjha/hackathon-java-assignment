@@ -8,6 +8,7 @@ When it comes to API spec and endpoints handlers, we have an Open API yaml file 
 
 What are your thoughts on the pros and cons of each approach? Which would you choose and why?
 
+
 **Answer:**
 ```txt
 OpenAPI-first (Warehouse API) pros:
