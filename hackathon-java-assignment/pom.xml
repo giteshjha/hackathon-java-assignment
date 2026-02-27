@@ -71,6 +71,11 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-jacoco</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
             <scope>test</scope>
@@ -161,10 +166,7 @@
                         <configuration>
                             <rules>
                                 <rule>
-                                    <element>PACKAGE</element>
-                                    <includes>
-                                        <include>com.fulfilment.application.monolith.warehouses.domain.usecases</include>
-                                    </includes>
+                                    <element>BUNDLE</element>
                                     <limits>
                                         <limit>
                                             <counter>LINE</counter>

@@ -144,7 +144,7 @@ git commit -m "Phase 5: complete assignment discussion answers"
 
 ## Phase 6: Coverage (JaCoCo >= 80%)
 Scope:
-- Configure JaCoCo report + check in `pom.xml` with threshold `0.80`.
+- Configure JaCoCo report + check in `pom.xml` with **project-wide** (`BUNDLE`) threshold `0.80`.
 
 Validation:
 ```bash
