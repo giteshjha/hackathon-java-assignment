@@ -4,6 +4,7 @@ import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
 import java.util.List;
 
 @ApplicationScoped
@@ -15,6 +16,7 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
   }
 
   @Override
+  @Transactional
   public void create(Warehouse warehouse) {
     DbWarehouse dbWarehouse = new DbWarehouse();
     dbWarehouse.businessUnitCode = warehouse.businessUnitCode;
@@ -28,29 +30,33 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
   }
 
   @Override
+  @Transactional
   public void update(Warehouse warehouse) {
-    getEntityManager().createQuery(
-      "UPDATE DbWarehouse w SET w.location = :loc, w.capacity = :cap, " +
-      "w.stock = :stock, w.archivedAt = :archived WHERE w.businessUnitCode = :code")
-      .setParameter("loc", warehouse.location)
-      .setParameter("cap", warehouse.capacity)
-      .setParameter("stock", warehouse.stock)
-      .setParameter("archived", warehouse.archivedAt)
-      .setParameter("code", warehouse.businessUnitCode)
-      .executeUpdate();
+    DbWarehouse existing = find("businessUnitCode", warehouse.businessUnitCode).firstResult();
+    if (existing == null) {
+      throw new IllegalArgumentException(
+          "Warehouse with business unit code '" + warehouse.businessUnitCode + "' does not exist");
+    }
 
-    // Clear persistence context to see updates in subsequent queries
+    existing.location = warehouse.location;
+    existing.capacity = warehouse.capacity;
+    existing.stock = warehouse.stock;
+    // Preserve archived state unless the caller explicitly sets an archive timestamp.
+    if (warehouse.archivedAt != null) {
+      existing.archivedAt = warehouse.archivedAt;
+    }
+
     getEntityManager().flush();
-    getEntityManager().clear();
   }
 
   @Override
+  @Transactional
   public void remove(Warehouse warehouse) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'remove'");
+    delete("businessUnitCode", warehouse.businessUnitCode);
   }
 
   @Override
+  @Transactional
   public Warehouse findByBusinessUnitCode(String buCode) {
     DbWarehouse dbWarehouse = find("businessUnitCode", buCode).firstResult();
     return dbWarehouse != null ? dbWarehouse.toWarehouse() : null;
