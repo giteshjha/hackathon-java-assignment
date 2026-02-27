@@ -18,6 +18,14 @@
             outline: 0;
             font-family: 'Open Sans', serif;
         }
+        .detail-box {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        hr { margin: 30px 0; }
     </style>
     <!-- Load AngularJS -->
     <script src="//ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular.min.js"></script>
@@ -29,6 +37,7 @@
 
         //Initialize page with default data which is blank in this example
         $scope.products = [];
+        $scope.selectedProduct = null;
 
         $scope.form = {
           id: -1,
@@ -77,6 +86,17 @@
         $scope.edit = function (product) {
           $scope.form.name = product.name;
           $scope.form.id = product.id;
+          $scope.selectedProduct = null;
+        };
+
+        //HTTP GET- get single product by id
+        $scope.view = function (product) {
+          $http({
+            method: 'GET',
+            url: '/product/' + product.id
+          }).then(function successCallback(response) {
+            $scope.selectedProduct = response.data;
+          }, _error);
         };
 
           /* Private Methods */
@@ -105,19 +125,266 @@
         function _clearForm() {
           $scope.form.name = "";
           $scope.form.id = -1;
+          $scope.selectedProduct = null;
+        }
+      });
+
+      // Store Management Controller
+      app.controller("StoreManagementController", function ($scope, $http) {
+
+        $scope.stores = [];
+        $scope.selectedStore = null;
+
+        $scope.form = {
+          id: -1,
+          name: "",
+          quantityProductsInStock: 0
+        };
+
+        _refreshStores();
+
+        //HTTP POST/PUT methods for add/edit stores
+        $scope.update = function () {
+          var method = "";
+          var url = "";
+          if ($scope.form.id == -1) {
+            //Id is absent so create store - POST operation
+            method = "POST";
+            url = '/store';
+          } else {
+            //If Id is present, it's edit operation - PUT operation
+            method = "PUT";
+            url = '/store/' + $scope.form.id;
+          }
+
+          $http({
+            method: method,
+            url: url,
+            data: angular.toJson(_storeFormData()),
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }).then(_success, _error);
+        };
+
+        //HTTP PATCH- partial update store by id
+        $scope.patch = function () {
+          if ($scope.form.id == -1) {
+            alert("Please select a store to partially update.");
+            return;
+          }
+          $http({
+            method: 'PATCH',
+            url: '/store/' + $scope.form.id,
+            data: angular.toJson(_storeFormData()),
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }).then(_success, _error);
+        };
+
+        //HTTP DELETE- delete store by id
+        $scope.remove = function (store) {
+          $http({
+            method: 'DELETE',
+            url: '/store/' + store.id
+          }).then(_success, _error);
+        };
+
+        //In case of edit, populate form with store data
+        $scope.edit = function (store) {
+          $scope.form.id = store.id;
+          $scope.form.name = store.name;
+          $scope.form.quantityProductsInStock = store.quantityProductsInStock;
+          $scope.selectedStore = null;
+        };
+
+        //HTTP GET- get single store by id
+        $scope.view = function (store) {
+          $http({
+            method: 'GET',
+            url: '/store/' + store.id
+          }).then(function successCallback(response) {
+            $scope.selectedStore = response.data;
+          }, _error);
+        };
+
+        /* Private Methods */
+        function _refreshStores() {
+          $http({
+            method: 'GET',
+            url: '/store'
+          }).then(function successCallback(response) {
+            $scope.stores = response.data;
+          }, function errorCallback(response) {
+            console.log(response.statusText);
+          });
+        }
+
+        function _success(response) {
+          _refreshStores();
+          _clearForm();
+        }
+
+        function _error(response) {
+          alert(response.data.message || response.statusText);
+        }
+
+        function _clearForm() {
+          $scope.form = { id: -1, name: "", quantityProductsInStock: 0 };
+          $scope.selectedStore = null;
+        }
+
+        function _storeFormData() {
+          return { name: $scope.form.name, quantityProductsInStock: $scope.form.quantityProductsInStock };
+        }
+      });
+
+      // Warehouse Management Controller
+      app.controller("WarehouseManagementController", function ($scope, $http) {
+
+        $scope.warehouses = [];
+        $scope.selectedWarehouse = null;
+        $scope.searchResults = [];
+        $scope.isReplacing = false;
+
+        $scope.form = {
+          businessUnitCode: "",
+          location: "",
+          capacity: 0,
+          stock: 0
+        };
+
+        $scope.searchForm = {
+          location: "",
+          minCapacity: "",
+          maxCapacity: "",
+          sortBy: "createdAt",
+          sortOrder: "asc",
+          page: 0,
+          pageSize: 10
+        };
+
+        _refreshWarehouses();
+
+        //HTTP POST /warehouse or POST /warehouse/{code}/replacement
+        $scope.save = function () {
+          var data = {
+            businessUnitCode: $scope.form.businessUnitCode,
+            location: $scope.form.location,
+            capacity: $scope.form.capacity,
+            stock: $scope.form.stock
+          };
+          var url = $scope.isReplacing
+            ? '/warehouse/' + $scope.form.businessUnitCode + '/replacement'
+            : '/warehouse';
+
+          $http({
+            method: 'POST',
+            url: url,
+            data: angular.toJson(data),
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }).then(_success, _error);
+        };
+
+        //HTTP GET /warehouse/{id} - get single warehouse by business unit code
+        $scope.view = function (warehouse) {
+          $http({
+            method: 'GET',
+            url: '/warehouse/' + warehouse.businessUnitCode
+          }).then(function successCallback(response) {
+            $scope.selectedWarehouse = response.data;
+          }, _error);
+        };
+
+        //HTTP DELETE /warehouse/{id} - archive warehouse
+        $scope.archive = function (warehouse) {
+          $http({
+            method: 'DELETE',
+            url: '/warehouse/' + warehouse.businessUnitCode
+          }).then(_success, _error);
+        };
+
+        //Cancel replace and reset form
+        $scope.cancelReplace = function () {
+          $scope.isReplacing = false;
+          $scope.form.businessUnitCode = '';
+        };
+
+        //Set up replace: fills form for POST /warehouse/{code}/replacement
+        $scope.replace = function (warehouse) {
+          $scope.isReplacing = true;
+          $scope.form.businessUnitCode = warehouse.businessUnitCode;
+          $scope.form.location = warehouse.location;
+          $scope.form.capacity = warehouse.capacity;
+          $scope.form.stock = warehouse.stock;
+          $scope.selectedWarehouse = null;
+        };
+
+        //HTTP GET /warehouse/search - search warehouses with filters
+        $scope.search = function () {
+          var params = [];
+          if ($scope.searchForm.location) params.push('location=' + encodeURIComponent($scope.searchForm.location));
+          if ($scope.searchForm.minCapacity !== "") params.push('minCapacity=' + $scope.searchForm.minCapacity);
+          if ($scope.searchForm.maxCapacity !== "") params.push('maxCapacity=' + $scope.searchForm.maxCapacity);
+          if ($scope.searchForm.sortBy) params.push('sortBy=' + $scope.searchForm.sortBy);
+          if ($scope.searchForm.sortOrder) params.push('sortOrder=' + $scope.searchForm.sortOrder);
+          params.push('page=' + ($scope.searchForm.page || 0));
+          params.push('pageSize=' + ($scope.searchForm.pageSize || 10));
+          var url = '/warehouse/search?' + params.join('&');
+
+          $http({
+            method: 'GET',
+            url: url
+          }).then(function successCallback(response) {
+            $scope.searchResults = response.data;
+          }, _error);
+        };
+
+        /* Private Methods */
+        function _refreshWarehouses() {
+          $http({
+            method: 'GET',
+            url: '/warehouse'
+          }).then(function successCallback(response) {
+            $scope.warehouses = response.data;
+          }, function errorCallback(response) {
+            console.log(response.statusText);
+          });
+        }
+
+        function _success(response) {
+          _refreshWarehouses();
+          _clearForm();
+        }
+
+        function _error(response) {
+          alert(response.data.message || response.statusText);
+        }
+
+        function _clearForm() {
+          $scope.form = { businessUnitCode: "", location: "", capacity: 0, stock: 0 };
+          $scope.isReplacing = false;
+          $scope.selectedWarehouse = null;
         }
       });
     </script>
 </head>
-<body ng-app="ProductManagement" ng-controller="ProductManagementController">
+<body ng-app="ProductManagement">
 
 <div class="container">
     <h1>Java Code Assignment</h1>
-    <p>This application demonstrates how a Quarkus application implements a CRUD endpoint to manage products using Hibernate ORM with Panache.
-        This management interface invokes the CRUD service endpoint, which interacts with a database using JPA and several other well known libraries.
+    <p>This application demonstrates how a Quarkus application implements a CRUD endpoint to manage products, stores and warehouses using Hibernate ORM with Panache.
+        This management interface invokes the CRUD service endpoints, which interact with a database using JPA and several other well known libraries.
     </p>
 
-    <h3>Add/Edit an Product to the Warehouse</h3>
+    <!-- ===== PRODUCT MANAGEMENT ===== -->
+    <div ng-controller="ProductManagementController">
+    <h2>Product Management</h2>
+
+    <h3>Add/Edit a Product</h3>
     <form ng-submit="update()">
         <div class="row">
             <div class="col-6"><input type="text" placeholder="Name" ng-model="form.name" size="60"/></div>
@@ -131,9 +398,156 @@
     </div>
     <div class="row" ng-repeat="product in products">
         <div class="col-2">{{ product.name }}</div>
-        <div class="col-8"><a ng-click="edit( product )" class="btn">Edit</a> <a ng-click="remove( product )" class="btn">Remove</a>
+        <div class="col-8">
+            <a ng-click="view( product )" class="btn">View</a>
+            <a ng-click="edit( product )" class="btn">Edit</a>
+            <a ng-click="remove( product )" class="btn">Remove</a>
         </div>
     </div>
+
+    <div class="detail-box" ng-if="selectedProduct">
+        <strong>Product Details (GET /product/{{selectedProduct.id}})</strong><br/>
+        ID: {{ selectedProduct.id }}<br/>
+        Name: {{ selectedProduct.name }}<br/>
+        Description: {{ selectedProduct.description }}<br/>
+        Price: {{ selectedProduct.price }}<br/>
+        Stock: {{ selectedProduct.stock }}
+    </div>
+    </div>
+
+    <hr/>
+
+    <!-- ===== STORE MANAGEMENT ===== -->
+    <div ng-controller="StoreManagementController">
+    <h2>Store Management</h2>
+
+    <h3>Add/Edit a Store</h3>
+    <form ng-submit="update()">
+        <div class="row">
+            <div class="col-4"><input type="text" placeholder="Name" ng-model="form.name" size="40"/></div>
+            <div class="col-4"><input type="number" placeholder="Quantity Products In Stock" ng-model="form.quantityProductsInStock"/></div>
+        </div>
+        <input type="submit" value="Save (POST / PUT)"/>
+        <button type="button" ng-click="patch()">Partial Update (PATCH)</button>
+    </form>
+
+    <h3>Store List</h3>
+    <div class="row">
+        <div class="col-2">Name</div>
+        <div class="col-2">Products In Stock</div>
+    </div>
+    <div class="row" ng-repeat="store in stores">
+        <div class="col-2">{{ store.name }}</div>
+        <div class="col-2">{{ store.quantityProductsInStock }}</div>
+        <div class="col-6">
+            <a ng-click="view( store )" class="btn">View</a>
+            <a ng-click="edit( store )" class="btn">Edit</a>
+            <a ng-click="remove( store )" class="btn">Remove</a>
+        </div>
+    </div>
+
+    <div class="detail-box" ng-if="selectedStore">
+        <strong>Store Details (GET /store/{{selectedStore.id}})</strong><br/>
+        ID: {{ selectedStore.id }}<br/>
+        Name: {{ selectedStore.name }}<br/>
+        Quantity Products In Stock: {{ selectedStore.quantityProductsInStock }}
+    </div>
+    </div>
+
+    <hr/>
+
+    <!-- ===== WAREHOUSE MANAGEMENT ===== -->
+    <div ng-controller="WarehouseManagementController">
+    <h2>Warehouse Management</h2>
+
+    <h3>Create / Replace a Warehouse</h3>
+    <p ng-if="isReplacing"><em>Replacing warehouse: <strong>{{ form.businessUnitCode }}</strong> (POST /warehouse/{{form.businessUnitCode}}/replacement)</em></p>
+    <form ng-submit="save()">
+        <div class="row">
+            <div class="col-4"><input type="text" placeholder="Business Unit Code" ng-model="form.businessUnitCode" ng-disabled="isReplacing" size="30"/></div>
+            <div class="col-4"><input type="text" placeholder="Location" ng-model="form.location" size="30"/></div>
+        </div>
+        <div class="row">
+            <div class="col-4"><input type="number" placeholder="Capacity" ng-model="form.capacity"/></div>
+            <div class="col-4"><input type="number" placeholder="Stock" ng-model="form.stock"/></div>
+        </div>
+        <input type="submit" value="Save"/>
+        <button type="button" ng-click="cancelReplace()" ng-if="isReplacing">Cancel Replace</button>
+    </form>
+
+    <h3>Warehouse List</h3>
+    <div class="row">
+        <div class="col-2">Business Unit Code</div>
+        <div class="col-2">Location</div>
+        <div class="col-1">Capacity</div>
+        <div class="col-1">Stock</div>
+    </div>
+    <div class="row" ng-repeat="warehouse in warehouses">
+        <div class="col-2">{{ warehouse.businessUnitCode }}</div>
+        <div class="col-2">{{ warehouse.location }}</div>
+        <div class="col-1">{{ warehouse.capacity }}</div>
+        <div class="col-1">{{ warehouse.stock }}</div>
+        <div class="col-4">
+            <a ng-click="view( warehouse )" class="btn">View</a>
+            <a ng-click="replace( warehouse )" class="btn">Replace</a>
+            <a ng-click="archive( warehouse )" class="btn">Archive</a>
+        </div>
+    </div>
+
+    <div class="detail-box" ng-if="selectedWarehouse">
+        <strong>Warehouse Details (GET /warehouse/{{selectedWarehouse.businessUnitCode}})</strong><br/>
+        Business Unit Code: {{ selectedWarehouse.businessUnitCode }}<br/>
+        Location: {{ selectedWarehouse.location }}<br/>
+        Capacity: {{ selectedWarehouse.capacity }}<br/>
+        Stock: {{ selectedWarehouse.stock }}
+    </div>
+
+    <h3>Search Warehouses (GET /warehouse/search)</h3>
+    <form ng-submit="search()">
+        <div class="row">
+            <div class="col-3"><input type="text" placeholder="Location filter" ng-model="searchForm.location" size="20"/></div>
+            <div class="col-2"><input type="number" placeholder="Min Capacity" ng-model="searchForm.minCapacity"/></div>
+            <div class="col-2"><input type="number" placeholder="Max Capacity" ng-model="searchForm.maxCapacity"/></div>
+        </div>
+        <div class="row">
+            <div class="col-2">
+                Sort By:
+                <select ng-model="searchForm.sortBy">
+                    <option value="createdAt">Created At</option>
+                    <option value="capacity">Capacity</option>
+                </select>
+            </div>
+            <div class="col-2">
+                Order:
+                <select ng-model="searchForm.sortOrder">
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                </select>
+            </div>
+            <div class="col-2"><input type="number" placeholder="Page (0-based)" ng-model="searchForm.page"/></div>
+            <div class="col-2"><input type="number" placeholder="Page Size" ng-model="searchForm.pageSize"/></div>
+        </div>
+        <input type="submit" value="Search"/>
+    </form>
+
+    <div ng-if="searchResults.length > 0">
+        <h4>Search Results</h4>
+        <div class="row">
+            <div class="col-2">Business Unit Code</div>
+            <div class="col-2">Location</div>
+            <div class="col-1">Capacity</div>
+            <div class="col-1">Stock</div>
+        </div>
+        <div class="row" ng-repeat="warehouse in searchResults">
+            <div class="col-2">{{ warehouse.businessUnitCode }}</div>
+            <div class="col-2">{{ warehouse.location }}</div>
+            <div class="col-1">{{ warehouse.capacity }}</div>
+            <div class="col-1">{{ warehouse.stock }}</div>
+        </div>
+    </div>
+    </div>
+
+    <hr/>
 
     <p>Behind the scenes, we have:
         <ul>
