@@ -1,10 +1,16 @@
-package com.fulfilment.application.monolith.stores;
+package com.fulfilment.application.monolith.stores.adapters.restapi;
 
-import com.fulfilment.application.monolith.products.Product;
-import com.fulfilment.application.monolith.products.ProductRepository;
-import io.quarkus.panache.common.Sort;
+import com.fulfilment.application.monolith.products.adapters.database.DbProduct;
+import com.fulfilment.application.monolith.products.adapters.database.ProductRepository;
+import com.fulfilment.application.monolith.stores.adapters.database.DbStore;
+import com.fulfilment.application.monolith.stores.adapters.database.StoreProduct;
+import com.fulfilment.application.monolith.stores.adapters.database.StoreRepositoryAdapter;
+import com.fulfilment.application.monolith.stores.domain.models.Store;
+import com.fulfilment.application.monolith.stores.domain.ports.CreateStoreOperation;
+import com.fulfilment.application.monolith.stores.domain.ports.DeleteStoreOperation;
+import com.fulfilment.application.monolith.stores.domain.ports.PatchStoreOperation;
+import com.fulfilment.application.monolith.stores.domain.ports.UpdateStoreOperation;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
@@ -21,31 +27,33 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 
+/**
+ * Driving adapter: thin REST endpoint that delegates CRUD to domain operation ports.
+ * Product-mapping endpoints stay here as they are cross-aggregate and adapter-layer concerns.
+ */
 @Path("store")
 @ApplicationScoped
 @Produces("application/json")
 @Consumes("application/json")
 public class StoreResource {
 
-  @Inject LegacyStoreManagerGateway legacyStoreManagerGateway;
+  @Inject CreateStoreOperation createStoreOperation;
+  @Inject UpdateStoreOperation updateStoreOperation;
+  @Inject PatchStoreOperation patchStoreOperation;
+  @Inject DeleteStoreOperation deleteStoreOperation;
+  @Inject StoreRepositoryAdapter storeRepositoryAdapter;
   @Inject ProductRepository productRepository;
   @Inject EntityManager entityManager;
 
-  @Inject Event<StoreCreatedEvent> storeCreatedEvent;
-
-  @Inject Event<StoreUpdatedEvent> storeUpdatedEvent;
-
-  @Inject Event<StoreDeletedEvent> storeDeletedEvent;
-
   @GET
   public List<Store> get() {
-    return Store.listAll(Sort.by("name"));
+    return storeRepositoryAdapter.getAll();
   }
 
   @GET
   @Path("{id}")
-  public Store getSingle(Long id) {
-    Store entity = Store.findById(id);
+  public Store getSingle(@PathParam("id") Long id) {
+    Store entity = storeRepositoryAdapter.getById(id);
     if (entity == null) {
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
     }
@@ -53,82 +61,34 @@ public class StoreResource {
   }
 
   @POST
-  @Transactional
   public Response create(Store store) {
-    if (store.id != null) {
-      throw new WebApplicationException("Id was invalidly set on request.", 422);
-    }
-
-    store.persist();
-    storeCreatedEvent.fire(new StoreCreatedEvent(store));
-
-    return Response.ok(store).status(201).build();
+    return createStoreOperation.create(store);
   }
 
   @PUT
   @Path("{id}")
-  @Transactional
-  public Store update(Long id, Store updatedStore) {
-    if (updatedStore.name == null) {
-      throw new WebApplicationException("Store Name was not set on request.", 422);
-    }
-
-    Store entity = Store.findById(id);
-
-    if (entity == null) {
-      throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
-    }
-
-    entity.name = updatedStore.name;
-    updateQuantityConsistently(entity, updatedStore.quantityProductsInStock);
-
-    storeUpdatedEvent.fire(new StoreUpdatedEvent(entity));
-
-    return entity;
+  public Store update(@PathParam("id") Long id, Store store) {
+    return updateStoreOperation.update(id, store);
   }
 
   @PATCH
   @Path("{id}")
-  @Transactional
-  public Store patch(Long id, Store updatedStore) {
-    if (updatedStore.name == null) {
-      throw new WebApplicationException("Store Name was not set on request.", 422);
-    }
-
-    Store entity = Store.findById(id);
-
-    if (entity == null) {
-      throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
-    }
-
-    if (entity.name != null) {
-      entity.name = updatedStore.name;
-    }
-
-    updateQuantityConsistently(entity, updatedStore.quantityProductsInStock);
-
-    storeUpdatedEvent.fire(new StoreUpdatedEvent(entity));
-
-    return entity;
+  public Store patch(@PathParam("id") Long id, Store store) {
+    return patchStoreOperation.patch(id, store);
   }
 
   @DELETE
   @Path("{id}")
-  @Transactional
-  public Response delete(Long id) {
-    Store entity = Store.findById(id);
-    if (entity == null) {
-      throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
-    }
-    entity.delete();
-    storeDeletedEvent.fire(new StoreDeletedEvent(entity));
-    return Response.status(204).build();
+  public Response delete(@PathParam("id") Long id) {
+    return deleteStoreOperation.delete(id);
   }
+
+  // ── Product mapping endpoints (adapter-layer, cross-aggregate) ───────────────────────────────
 
   @GET
   @Path("{id}/products")
   public List<StoreProductView> listStoreProducts(@PathParam("id") Long id) {
-    Store store = requireStore(id);
+    DbStore store = requireDbStore(id);
     return entityManager
         .createQuery(
             "select sp from StoreProduct sp join fetch sp.product where sp.store = :store order by sp.product.name",
@@ -144,13 +104,15 @@ public class StoreResource {
   @Path("{id}/products/{productId}")
   @Transactional
   public StoreProductView upsertStoreProduct(
-      @PathParam("id") Long id, @PathParam("productId") Long productId, StoreProductRequest request) {
+      @PathParam("id") Long id,
+      @PathParam("productId") Long productId,
+      StoreProductRequest request) {
     if (request == null || request.quantity == null || request.quantity <= 0) {
       throw new WebApplicationException("Quantity must be a positive number.", 422);
     }
 
-    Store store = requireStore(id);
-    Product product = requireProduct(productId);
+    DbStore store = requireDbStore(id);
+    DbProduct product = requireDbProduct(productId);
 
     StoreProduct existing =
         entityManager
@@ -179,7 +141,7 @@ public class StoreResource {
             "Insufficient stock for '" + product.name + "'. Needs " + delta + " more unit(s), Available: "
                 + product.stock + ".", 422);
       }
-      product.stock -= delta;   // negative delta returns stock
+      product.stock -= delta;
       existing.quantity = request.quantity;
     }
 
@@ -192,8 +154,8 @@ public class StoreResource {
   @Transactional
   public Response deleteStoreProduct(
       @PathParam("id") Long id, @PathParam("productId") Long productId) {
-    Store store = requireStore(id);
-    Product product = requireProduct(productId);
+    DbStore store = requireDbStore(id);
+    DbProduct product = requireDbProduct(productId);
 
     StoreProduct existing =
         entityManager
@@ -211,31 +173,29 @@ public class StoreResource {
           "Store-product mapping does not exist for store " + id + " and product " + productId + ".", 404);
     }
 
-    product.stock += existing.quantity;   // return allocated units to available pool
+    product.stock += existing.quantity;
     entityManager.remove(existing);
     synchronizeStoreQuantity(store);
     return Response.status(204).build();
   }
 
-  private Store requireStore(Long id) {
-    Store store = Store.findById(id);
+  private DbStore requireDbStore(Long id) {
+    DbStore store = storeRepositoryAdapter.findDbById(id);
     if (store == null) {
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
     }
     return store;
   }
 
-  private Product requireProduct(Long id) {
-    Product product = productRepository.findById(id);
+  private DbProduct requireDbProduct(Long id) {
+    DbProduct product = productRepository.findDbById(id);
     if (product == null) {
       throw new WebApplicationException("Product with id of " + id + " does not exist.", 404);
     }
     return product;
   }
 
-  /** Ensures the total units of a product allocated across ALL stores + warehouses never exceeds
-   *  the product's own stock. existingMapping is the current row being replaced (null for new). */
-  private void synchronizeStoreQuantity(Store store) {
+  private void synchronizeStoreQuantity(DbStore store) {
     Number total =
         entityManager
             .createQuery(
@@ -244,23 +204,6 @@ public class StoreResource {
             .setParameter("store", store)
             .getSingleResult();
     store.quantityProductsInStock = total.intValue();
-  }
-
-  /** If the store has product mappings, always recalculate from mappings (ignores provided value).
-   *  If no mappings exist, use the manually provided value (backward-compatible). */
-  private void updateQuantityConsistently(Store store, int providedQuantity) {
-    Number mappingCount =
-        entityManager
-            .createQuery(
-                "select count(sp) from StoreProduct sp where sp.store = :store",
-                Number.class)
-            .setParameter("store", store)
-            .getSingleResult();
-    if (mappingCount.longValue() > 0) {
-      synchronizeStoreQuantity(store);
-    } else {
-      store.quantityProductsInStock = providedQuantity;
-    }
   }
 
   public static class StoreProductRequest {

@@ -1,15 +1,15 @@
 package com.fulfilment.application.monolith.stores;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+import com.fulfilment.application.monolith.stores.domain.models.Store;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.mockito.InjectMock;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 
 @QuarkusTest
 public class StoreEventObserverTest {
@@ -23,10 +23,7 @@ public class StoreEventObserverTest {
   private Store testStore;
 
   @BeforeEach
-  @Transactional
   public void setup() {
-    Store.deleteAll();
-    
     testStore = new Store();
     testStore.name = "Test Store";
     testStore.quantityProductsInStock = 100;
@@ -38,9 +35,9 @@ public class StoreEventObserverTest {
 
     StoreCreatedEvent event = new StoreCreatedEvent(testStore);
     storeEventObserver.onStoreCreated(event);
-    
+
     Thread.sleep(100);
-    
+
     verify(legacyGateway, times(1)).createStoreOnLegacySystem(any(Store.class));
   }
 
@@ -50,9 +47,9 @@ public class StoreEventObserverTest {
 
     StoreUpdatedEvent event = new StoreUpdatedEvent(testStore);
     storeEventObserver.onStoreUpdated(event);
-    
+
     Thread.sleep(100);
-    
+
     verify(legacyGateway, times(1)).updateStoreOnLegacySystem(any(Store.class));
   }
 }

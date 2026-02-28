@@ -2,6 +2,7 @@ package com.fulfilment.application.monolith.stores;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.fulfilment.application.monolith.stores.domain.models.Store;
 import org.junit.jupiter.api.Test;
 
 class StoreSupportUnitTest {

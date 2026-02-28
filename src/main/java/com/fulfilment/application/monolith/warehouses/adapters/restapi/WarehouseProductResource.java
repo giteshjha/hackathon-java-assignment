@@ -1,7 +1,7 @@
 package com.fulfilment.application.monolith.warehouses.adapters.restapi;
 
-import com.fulfilment.application.monolith.products.Product;
-import com.fulfilment.application.monolith.products.ProductRepository;
+import com.fulfilment.application.monolith.products.adapters.database.DbProduct;
+import com.fulfilment.application.monolith.products.adapters.database.ProductRepository;
 import com.fulfilment.application.monolith.warehouses.adapters.database.DbWarehouse;
 import com.fulfilment.application.monolith.warehouses.adapters.database.WarehouseProduct;
 import com.fulfilment.application.monolith.warehouses.adapters.database.WarehouseRepository;
@@ -58,7 +58,7 @@ public class WarehouseProductResource {
 
     DbWarehouse warehouse = requireWarehouse(businessUnitCode);
     ensureWarehouseIsActive(warehouse);
-    Product product = requireProduct(productId);
+    DbProduct product = requireProduct(productId);
 
     WarehouseProduct existing =
         entityManager
@@ -103,7 +103,7 @@ public class WarehouseProductResource {
       @PathParam("productId") Long productId) {
     DbWarehouse warehouse = requireWarehouse(businessUnitCode);
     ensureWarehouseIsActive(warehouse);
-    Product product = requireProduct(productId);
+    DbProduct product = requireProduct(productId);
 
     WarehouseProduct existing =
         entityManager
@@ -141,8 +141,8 @@ public class WarehouseProductResource {
     return warehouse;
   }
 
-  private Product requireProduct(Long id) {
-    Product product = productRepository.findById(id);
+  private DbProduct requireProduct(Long id) {
+    DbProduct product = productRepository.findDbById(id);
     if (product == null) {
       throw new WebApplicationException("Product with id of " + id + " does not exist.", 404);
     }

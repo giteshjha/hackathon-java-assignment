@@ -1,5 +1,6 @@
 package com.fulfilment.application.monolith.stores;
 
+import com.fulfilment.application.monolith.stores.domain.ports.LegacyStoreGateway;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.event.TransactionPhase;
@@ -11,21 +12,21 @@ public class StoreEventObserver {
 
   private static final Logger LOGGER = Logger.getLogger(StoreEventObserver.class.getName());
 
-  @Inject 
-  LegacyStoreManagerGateway legacyStoreManagerGateway;
+  @Inject
+  LegacyStoreGateway legacyStoreGateway;
 
   public void onStoreCreated(@Observes(during = TransactionPhase.AFTER_SUCCESS) StoreCreatedEvent event) {
     LOGGER.info("Store created event received, syncing with legacy system: " + event.getStore().id);
-    legacyStoreManagerGateway.createStoreOnLegacySystem(event.getStore());
+    legacyStoreGateway.createStoreOnLegacySystem(event.getStore());
   }
 
   public void onStoreUpdated(@Observes(during = TransactionPhase.AFTER_SUCCESS) StoreUpdatedEvent event) {
     LOGGER.info("Store updated event received, syncing with legacy system: " + event.getStore().id);
-    legacyStoreManagerGateway.updateStoreOnLegacySystem(event.getStore());
+    legacyStoreGateway.updateStoreOnLegacySystem(event.getStore());
   }
 
   public void onStoreDeleted(@Observes(during = TransactionPhase.AFTER_SUCCESS) StoreDeletedEvent event) {
     LOGGER.info("Store deleted event received, syncing with legacy system: " + event.getStore().id);
-    legacyStoreManagerGateway.deleteStoreOnLegacySystem(event.getStore());
+    legacyStoreGateway.deleteStoreOnLegacySystem(event.getStore());
   }
 }

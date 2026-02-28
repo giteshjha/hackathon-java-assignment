@@ -1,7 +1,8 @@
 package com.fulfilment.application.monolith.stores;
 
-public class StoreDeletedEvent {
+import com.fulfilment.application.monolith.stores.domain.models.Store;
 
+public class StoreDeletedEvent {
   private final Store store;
 
   public StoreDeletedEvent(Store store) {
