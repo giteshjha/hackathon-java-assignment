@@ -78,9 +78,9 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
     StringBuilder query = new StringBuilder("archivedAt is null");
     Map<String, Object> params = new HashMap<>();
 
-    if (location != null) {
-      query.append(" and location = :location");
-      params.put("location", location);
+    if (location != null && !location.isBlank()) {
+      query.append(" and upper(location) like :locationPattern");
+      params.put("locationPattern", "%" + location.trim().toUpperCase() + "%");
     }
     if (minCapacity != null) {
       query.append(" and capacity >= :minCapacity");

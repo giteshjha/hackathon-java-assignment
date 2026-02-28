@@ -23,4 +23,9 @@ public class StoreEventObserver {
     LOGGER.info("Store updated event received, syncing with legacy system: " + event.getStore().id);
     legacyStoreManagerGateway.updateStoreOnLegacySystem(event.getStore());
   }
+
+  public void onStoreDeleted(@Observes(during = TransactionPhase.AFTER_SUCCESS) StoreDeletedEvent event) {
+    LOGGER.info("Store deleted event received, syncing with legacy system: " + event.getStore().id);
+    legacyStoreManagerGateway.deleteStoreOnLegacySystem(event.getStore());
+  }
 }

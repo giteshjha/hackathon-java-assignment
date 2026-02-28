@@ -181,3 +181,8 @@ components:
         stock:
           type: integer
           example: 50
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null

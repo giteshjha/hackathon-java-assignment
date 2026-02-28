@@ -15,4 +15,13 @@ class StoreSupportUnitTest {
     assertDoesNotThrow(() -> gateway.createStoreOnLegacySystem(store));
     assertDoesNotThrow(() -> gateway.updateStoreOnLegacySystem(store));
   }
+
+  @Test
+  void legacyGatewayCanWriteForDelete() {
+    LegacyStoreManagerGateway gateway = new LegacyStoreManagerGateway();
+    Store store = new Store("LEGACY-STORE-DELETE");
+    store.quantityProductsInStock = 3;
+
+    assertDoesNotThrow(() -> gateway.deleteStoreOnLegacySystem(store));
+  }
 }

@@ -110,4 +110,75 @@ public class WarehouseEndpointIT {
         .then()
         .statusCode(400);
   }
+
+  @Test
+  public void testWarehouseProductMappingsKeepStockConsistent() {
+    String code = "MAP-" + System.currentTimeMillis();
+    String productName = "WarehouseMapProduct_" + System.nanoTime();
+
+    given()
+        .contentType("application/json")
+        .body(
+            Map.of(
+                "businessUnitCode", code,
+                "location", "EINDHOVEN-001",
+                "capacity", 20,
+                "stock", 0))
+        .when()
+        .post("warehouse")
+        .then()
+        .statusCode(200);
+
+    Long productId =
+        given()
+            .contentType("application/json")
+            .body(
+                Map.of(
+                    "name", productName,
+                    "description", "warehouse mapping",
+                    "price", 12.50,
+                    "stock", 100))
+            .when()
+            .post("product")
+            .then()
+            .statusCode(201)
+            .extract()
+            .jsonPath()
+            .getLong("id");
+
+    given()
+        .contentType("application/json")
+        .body(Map.of("quantity", 12))
+        .when()
+        .put("warehouse/" + code + "/products/" + productId)
+        .then()
+        .statusCode(200)
+        .body("quantity", org.hamcrest.Matchers.equalTo(12));
+
+    given()
+        .when()
+        .get("warehouse/" + code + "/products")
+        .then()
+        .statusCode(200)
+        .body("$", hasSize(1))
+        .body("[0].productId", org.hamcrest.Matchers.equalTo(productId.intValue()))
+        .body("[0].quantity", org.hamcrest.Matchers.equalTo(12));
+
+    given().when().get("warehouse/" + code).then().statusCode(200).body("stock", org.hamcrest.Matchers.equalTo(12));
+
+    given()
+        .contentType("application/json")
+        .body(Map.of("quantity", 25))
+        .when()
+        .put("warehouse/" + code + "/products/" + productId)
+        .then()
+        .statusCode(422);
+
+    given().when().delete("warehouse/" + code + "/products/" + productId).then().statusCode(204);
+
+    given().when().get("warehouse/" + code).then().statusCode(200).body("stock", org.hamcrest.Matchers.equalTo(0));
+
+    given().when().delete("warehouse/" + code).then().statusCode(204);
+    given().when().delete("product/" + productId).then().statusCode(204);
+  }
 }

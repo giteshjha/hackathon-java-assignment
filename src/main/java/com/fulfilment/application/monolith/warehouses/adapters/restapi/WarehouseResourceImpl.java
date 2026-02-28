@@ -12,6 +12,8 @@ import jakarta.transaction.Transactional;
 import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.WebApplicationException;
 import java.math.BigInteger;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 
 @RequestScoped
@@ -174,6 +176,9 @@ public class WarehouseResourceImpl implements WarehouseResource {
     response.setLocation(warehouse.location);
     response.setCapacity(warehouse.capacity);
     response.setStock(warehouse.stock);
+    if (warehouse.archivedAt != null) {
+      response.setArchivedAt(Date.from(warehouse.archivedAt.atZone(ZoneId.systemDefault()).toInstant()));
+    }
 
     return response;
   }
