@@ -1,87 +1,82 @@
-# Java Hackathon Assignment - 6 Hour Edition
+# Java Hackathon Assignment - Fulfillment Management System
 
-This is a **hackathon-style code assignment** designed to be completed in approximately **6 hours**. It covers API design, persistence, testing patterns, and transaction management in a real-world Quarkus application.
+A production-grade fulfillment management system built with **Quarkus 3.13.3**, following **Hexagonal Architecture** (Ports & Adapters) across all three bounded contexts: Warehouses, Stores, and Products.
 
 ## Quick Start
 
 ```bash
-# 1. Start the application in dev mode
+# Start in dev mode (auto-reloads on code change)
 ./mvnw quarkus:dev
 
-# 2. Access Swagger UI
+# Open the UI
+open http://localhost:8080/index.html
+
+# Open Swagger UI (API explorer)
 open http://localhost:8080/q/swagger-ui
 
-# 3. Run tests
-./mvnw test
-
-# 4. Compile and package
-./mvnw package
+# Open Prometheus metrics
+open http://localhost:8080/q/metrics
 ```
 
-## Before You Begin
+## Running Tests
 
-Read [BRIEFING.md](BRIEFING.md) for domain context, then [CODE_ASSIGNMENT.md](CODE_ASSIGNMENT.md) for your tasks.
+```bash
+# Run all tests + JaCoCo coverage gate (80% minimum)
+./mvnw verify
 
----
+# Run tests only
+./mvnw test
+
+# Run a specific test class
+./mvnw test -Dtest=ArchiveWarehouseUseCaseUnitTest
+```
+
+**Current state:** 65 tests, 0 failures, JaCoCo 80% gate passing.
 
 ## Architecture
 
-This codebase follows **Hexagonal Architecture** (Ports & Adapters) with:
+All three bounded contexts follow **Hexagonal Architecture**:
 
-- Domain use cases isolated from REST and database concerns
-- CDI events for post-commit integration calls
-- OpenAPI-generated REST layer for the Warehouse API
-- Hand-coded REST endpoints for Stores and Products
-
----
-
-## Technologies
-
-- **Java 17+**
-- **Quarkus 3.13.3**
-- **PostgreSQL** (via Docker or Quarkus Dev Services)
-- **JUnit 5** + **Testcontainers** + **Mockito**
-- **OpenAPI** (code generation for Warehouse API)
-
----
-
-## Running the Code
-
-```bash
-# Compile and run tests
-./mvnw clean test
-
-# Run specific test class
-./mvnw test -Dtest=ArchiveWarehouseUseCaseTest
-
-# Start development mode
-./mvnw quarkus:dev
-
-# Access Swagger UI
-open http://localhost:8080/q/swagger-ui
+```
+<context>/
+  domain/
+    models/       ← pure POJOs, no framework annotations
+    ports/        ← driving ports (use case interfaces) + driven ports (repository/gateway interfaces)
+    usecases/     ← business logic, depends only on ports
+  adapters/
+    database/     ← JPA entities (DbXxx), repository implementations
+    restapi/      ← JAX-RS resource classes (thin, delegates to use cases)
 ```
 
-### (Optional) Run in JVM mode
+- **Warehouse** — OpenAPI-generated REST contract (`warehouse-openapi.yaml`)
+- **Store** — hand-coded REST, CDI events for post-commit legacy sync
+- **Product** — hand-coded REST, use cases enforce stock constraints
 
-First compile:
+## Key Business Rules
+
+- Product `stock` is the **sum** of all allocations across stores and warehouses
+- Adding/updating a product in a store or warehouse updates `product.stock` **transactionally**
+- Warehouse capacity and location limits are enforced on create/replace
+- Archived warehouses are excluded from search results and cannot be replaced
+- Legacy store gateway is notified **after** transaction commit (CDI `AFTER_SUCCESS`)
+
+## Observability
+
+- **Prometheus metrics:** `http://localhost:8080/q/metrics` (Micrometer counters for warehouse/store/product operations)
+- **Health checks:** `http://localhost:8080/q/health`
+- **OpenAPI spec:** `http://localhost:8080/q/openapi`
+
+## Running in JVM Mode (with PostgreSQL)
 
 ```bash
 ./mvnw package
-```
 
-Start a PostgreSQL instance:
-
-```bash
-docker run -it --rm=true --name quarkus_test \
+docker run -it --rm --name quarkus_pg \
   -e POSTGRES_USER=quarkus_test \
   -e POSTGRES_PASSWORD=quarkus_test \
   -e POSTGRES_DB=quarkus_test \
   -p 15432:5432 postgres:13.3
-```
 
-Then run:
-
-```bash
 java -jar ./target/quarkus-app/quarkus-run.jar
 ```
 
@@ -89,4 +84,4 @@ Navigate to <http://localhost:8080/index.html>
 
 ---
 
-**Good luck and have fun!** This is about demonstrating your understanding of production-grade patterns, not just writing code under pressure.
+Read [BRIEFING.md](BRIEFING.md) for domain context and [CODE_ASSIGNMENT.md](CODE_ASSIGNMENT.md) for the original assignment tasks.

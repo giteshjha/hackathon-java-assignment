@@ -850,3 +850,125 @@ Total time: 10.790 s
 ---
 
 **End of Report**
+
+---
+
+## 5. Post-Initial-Implementation Changes
+
+### 5.1 Hexagonal Architecture Refactoring (Products & Stores)
+
+**Context:** After the initial implementation, `Product` and `Store` contexts used a flat "transaction script" style — fat resource classes with Active Record Panache entities. Only `Warehouse` followed proper Hexagonal Architecture. The project was refactored to apply the same pattern consistently.
+
+**Branch:** `feature/hexagonal-architecture`
+
+#### What Changed
+
+**Products context** — before:
+```
+products/
+  Product.java         ← PanacheEntity (JPA + domain mixed)
+  ProductRepository.java
+  ProductResource.java ← business logic inline
+```
+
+**Products context** — after (hexagonal):
+```
+products/
+  domain/
+    models/Product.java              ← pure POJO (no JPA)
+    ports/ProductStore.java          ← driven port (persistence interface)
+    ports/CreateProductOperation.java  ← driving port (use case interface)
+    ports/UpdateProductOperation.java
+    ports/DeleteProductOperation.java
+    usecases/CreateProductUseCase.java ← business logic, depends only on ports
+    usecases/UpdateProductUseCase.java
+    usecases/DeleteProductUseCase.java
+  adapters/
+    database/DbProduct.java          ← @Entity(name="Product"), implements JPA
+    database/ProductRepository.java  ← implements ProductStore + PanacheRepository<DbProduct>
+    restapi/ProductResource.java     ← thin REST adapter, delegates to use cases
+```
+
+Same structure applied to **Stores** context (see `stores/domain/` and `stores/adapters/`).
+
+#### Key Technical Decisions
+
+| Decision | Rationale |
+|---|---|
+| `@Entity(name="Product")` on `DbProduct` | Keeps all existing JPQL queries (`from Product`) unchanged |
+| Port method `getById()` not `findById()` | Avoids return-type conflict with Panache's `findById()` |
+| `findDbById()` on repository adapters | Adapter-layer method returning managed JPA entity for join-table stock mutations |
+| Events carry domain `Store` POJO | `StoreCreatedEvent`, `StoreUpdatedEvent`, `StoreDeletedEvent` now pass `stores.domain.models.Store` |
+| `LegacyStoreGateway` as interface | `StoreEventObserver` now depends on the port, not the concrete gateway class |
+
+---
+
+### 5.2 Transactional Stock Management
+
+**Context:** A product's `stock` field must always equal the sum of its allocations across all stores and warehouses. Previously, adding a product to a store or warehouse did not update `product.stock`, and no validation prevented over-allocation.
+
+#### Behaviour After Fix
+
+- `POST /store/{id}/products` and `PUT /store/{id}/products/{productId}` — adding or updating a store–product allocation **atomically** adjusts `product.stock` within the same transaction
+- `DELETE /store/{id}/products/{productId}` — removing an allocation restores stock to `product.stock`
+- Same behaviour for `POST /warehouse/{code}/products` and `DELETE /warehouse/{code}/products/{productId}`
+- If total allocations would exceed the product's available stock, the operation is **rejected with 400**
+- All stock mutations go through `ProductRepository.adjustStock(id, delta)` which is `@Transactional`
+
+#### Validation Added
+
+```
+Available stock = product.stock - existing allocation for this mapping
+If requested quantity > available stock → 400 Bad Request
+```
+
+---
+
+### 5.3 UI Enhancements
+
+- All three sections (Warehouses, Stores, Products) visible on landing page with descriptive text
+- **Mapping UI:** dedicated panels to attach products to a store or warehouse after creation, or during creation
+- **Search with autocomplete:** warehouse search caches previous results and offers partial-match suggestions as the user types
+- Prometheus metrics badge and Health badge in page header
+- Overlapping button layout fixed; operation labels (Add, Search, Map) made prominent
+
+---
+
+### 5.4 Test Reduction (78 → 65 tests)
+
+13 tests removed while maintaining the JaCoCo 80% coverage gate.
+
+| File | Tests removed | Reason |
+|---|---|---|
+| `LocationGatewayTest` | 1 (entire file) | Test body was entirely commented out — literally did nothing |
+| `ModelConstructorsTest` | 1 | Tested getters/setters of auto-generated OpenAPI bean (`com.warehouse.api.beans.Warehouse`) |
+| `FulfillmentMetricsTest` | 1 | Tested that Micrometer counter increments 3× when called 3× — library behavior, not our code |
+| `WarehouseOptimisticLockingTest` | 1 | Tested that JPA `@Version` field increments after an update — framework behavior, not our logic |
+| `ArchiveWarehouseUseCaseTest` | 3 | Exact duplicates of `ArchiveWarehouseUseCaseUnitTest` (archive success, not-found, already-archived); the **concurrency test was kept** |
+| `ReplaceWarehouseUseCaseTest` | 6 | Exact duplicates of `ReplaceWarehouseUseCaseUnitTest` (replace success, not-found, archived, invalid location, capacity limit, stock limit); the **concurrency test was kept** |
+
+**Result:** 65/65 tests pass, JaCoCo 80% gate met. High-value tests preserved:
+
+| Kept test | Why |
+|---|---|
+| `ArchiveWarehouseUseCaseTest.testConcurrentArchive*` | Race condition — needs real transaction manager |
+| `ReplaceWarehouseUseCaseTest.testConcurrentReplace*` | Same — real DB required for optimistic lock to manifest |
+| `WarehouseOptimisticLockingTest.testOptimisticLockingPreventsLostUpdates` | End-to-end proof that `@Version` actually blocks lost updates |
+| `WarehouseConcurrencyIT` / `StoreTransactionIntegrationTest` | Transaction semantics verified with real Quarkus container |
+
+---
+
+### 5.5 Updated API Surface
+
+The following endpoints were added beyond the original assignment:
+
+| Endpoint | Description |
+|---|---|
+| `GET /store/{id}/products` | List all products mapped to a store |
+| `POST /store/{id}/products` | Map a product to a store (creates/updates allocation, adjusts stock) |
+| `DELETE /store/{id}/products/{productId}` | Remove a product mapping from a store (restores stock) |
+| `GET /warehouse/{code}/products` | List all products in a warehouse |
+| `POST /warehouse/{code}/products` | Map a product to a warehouse (creates/updates allocation, adjusts stock) |
+| `DELETE /warehouse/{code}/products/{productId}` | Remove a product mapping from a warehouse (restores stock) |
+
+
