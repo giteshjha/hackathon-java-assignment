@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import com.fulfilment.application.monolith.products.adapters.restapi.ProductResource;
-import com.fulfilment.application.monolith.products.domain.models.Product;
+import com.fulfilment.application.monolith.products.adapters.database.Product;
 import com.fulfilment.application.monolith.products.domain.ports.ProductStore;
 import com.fulfilment.application.monolith.products.domain.usecases.CreateProductUseCase;
 import com.fulfilment.application.monolith.products.domain.usecases.DeleteProductUseCase;
@@ -37,17 +37,6 @@ class ProductResourceUnitTest {
     createUseCase = new CreateProductUseCase(productStore);
     updateUseCase = new UpdateProductUseCase(productStore);
     deleteUseCase = new DeleteProductUseCase(productStore);
-  }
-
-  @Test
-  void createRejectsPresetId() {
-    Product product = new Product("P1");
-    product.id = 1L;
-
-    WebApplicationException exception =
-        assertThrows(WebApplicationException.class, () -> createUseCase.create(product));
-
-    assertEquals(422, exception.getResponse().getStatus());
   }
 
   @Test

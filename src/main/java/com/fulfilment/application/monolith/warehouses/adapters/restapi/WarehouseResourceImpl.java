@@ -9,7 +9,6 @@ import com.warehouse.api.beans.Warehouse;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.WebApplicationException;
 import java.math.BigInteger;
 import java.time.ZoneId;
@@ -31,7 +30,7 @@ public class WarehouseResourceImpl implements WarehouseResource {
 
   @Override
   @Transactional
-  public Warehouse createANewWarehouseUnit(@NotNull Warehouse data) {
+  public Warehouse createANewWarehouseUnit(Warehouse data) {
     // Convert API model to domain model
     var domainWarehouse = new com.fulfilment.application.monolith.warehouses.domain.models.Warehouse();
     domainWarehouse.businessUnitCode = data.getBusinessUnitCode();
@@ -83,7 +82,7 @@ public class WarehouseResourceImpl implements WarehouseResource {
   @Override
   @Transactional
   public Warehouse replaceTheCurrentActiveWarehouse(
-      String businessUnitCode, @NotNull Warehouse data) {
+      String businessUnitCode, Warehouse data) {
     // Convert API model to domain model
     var domainWarehouse = new com.fulfilment.application.monolith.warehouses.domain.models.Warehouse();
     domainWarehouse.businessUnitCode = businessUnitCode; // Use businessUnitCode from path

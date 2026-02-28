@@ -1,6 +1,6 @@
 package com.fulfilment.application.monolith.products.domain.ports;
 
-import com.fulfilment.application.monolith.products.domain.models.Product;
+import com.fulfilment.application.monolith.products.adapters.database.Product;
 import jakarta.ws.rs.core.Response;
 
 /** Driving port: entry point for creating a product. */

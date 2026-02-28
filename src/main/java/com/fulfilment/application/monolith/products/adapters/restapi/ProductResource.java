@@ -1,6 +1,6 @@
 package com.fulfilment.application.monolith.products.adapters.restapi;
 
-import com.fulfilment.application.monolith.products.domain.models.Product;
+import com.fulfilment.application.monolith.products.adapters.database.Product;
 import com.fulfilment.application.monolith.products.domain.ports.CreateProductOperation;
 import com.fulfilment.application.monolith.products.domain.ports.DeleteProductOperation;
 import com.fulfilment.application.monolith.products.domain.ports.ProductStore;
@@ -8,6 +8,7 @@ import com.fulfilment.application.monolith.products.domain.ports.UpdateProductOp
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
@@ -20,9 +21,6 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 
-/**
- * Driving adapter: thin REST endpoint that delegates all business logic to domain operation ports.
- */
 @Path("product")
 @ApplicationScoped
 @Produces("application/json")
@@ -50,13 +48,13 @@ public class ProductResource {
   }
 
   @POST
-  public Response create(Product product) {
+  public Response create(@Valid Product product) {
     return createProductOperation.create(product);
   }
 
   @PUT
   @Path("{id}")
-  public Product update(@PathParam("id") Long id, Product product) {
+  public Product update(@PathParam("id") Long id, @Valid Product product) {
     return updateProductOperation.update(id, product);
   }
 

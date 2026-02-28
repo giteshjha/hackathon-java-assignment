@@ -1,6 +1,6 @@
 package com.fulfilment.application.monolith.stores.adapters.restapi;
 
-import com.fulfilment.application.monolith.products.adapters.database.DbProduct;
+import com.fulfilment.application.monolith.products.adapters.database.Product;
 import com.fulfilment.application.monolith.products.adapters.database.ProductRepository;
 import com.fulfilment.application.monolith.stores.adapters.database.DbStore;
 import com.fulfilment.application.monolith.stores.adapters.database.StoreProduct;
@@ -14,6 +14,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
@@ -61,19 +62,19 @@ public class StoreResource {
   }
 
   @POST
-  public Response create(Store store) {
+  public Response create(@Valid Store store) {
     return createStoreOperation.create(store);
   }
 
   @PUT
   @Path("{id}")
-  public Store update(@PathParam("id") Long id, Store store) {
+  public Store update(@PathParam("id") Long id, @Valid Store store) {
     return updateStoreOperation.update(id, store);
   }
 
   @PATCH
   @Path("{id}")
-  public Store patch(@PathParam("id") Long id, Store store) {
+  public Store patch(@PathParam("id") Long id, @Valid Store store) {
     return patchStoreOperation.patch(id, store);
   }
 
@@ -112,7 +113,7 @@ public class StoreResource {
     }
 
     DbStore store = requireDbStore(id);
-    DbProduct product = requireDbProduct(productId);
+    Product product = requireProduct(productId);
 
     StoreProduct existing =
         entityManager
@@ -155,7 +156,7 @@ public class StoreResource {
   public Response deleteStoreProduct(
       @PathParam("id") Long id, @PathParam("productId") Long productId) {
     DbStore store = requireDbStore(id);
-    DbProduct product = requireDbProduct(productId);
+    Product product = requireProduct(productId);
 
     StoreProduct existing =
         entityManager
@@ -187,8 +188,8 @@ public class StoreResource {
     return store;
   }
 
-  private DbProduct requireDbProduct(Long id) {
-    DbProduct product = productRepository.findDbById(id);
+  private Product requireProduct(Long id) {
+    Product product = productRepository.findDbById(id);
     if (product == null) {
       throw new WebApplicationException("Product with id of " + id + " does not exist.", 404);
     }

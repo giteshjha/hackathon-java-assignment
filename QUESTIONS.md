@@ -33,9 +33,8 @@ Hand-coded endpoints cons:
 - Harder to standardize across many endpoints over time.
 
 What I would choose:
-- For business-critical and externally consumed APIs, I prefer OpenAPI-first.
-- For small internal endpoints and fast prototyping, hand-coded is acceptable.
-- In this project, I would keep Warehouse OpenAPI-first and gradually move Product/Store to spec-first once behavior stabilizes.
+- Where I need to develop fast, reusable apis is simple and doesn't require full control, I prefer OpenAPI-first.
+- When I would need full control over the implementation, and want to add more validations.
 ```
 
 ---

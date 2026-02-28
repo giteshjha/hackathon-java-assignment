@@ -2,7 +2,7 @@ package com.fulfilment.application.monolith.models;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.fulfilment.application.monolith.products.domain.models.Product;
+import com.fulfilment.application.monolith.products.adapters.database.Product;
 import com.fulfilment.application.monolith.stores.domain.models.Store;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;

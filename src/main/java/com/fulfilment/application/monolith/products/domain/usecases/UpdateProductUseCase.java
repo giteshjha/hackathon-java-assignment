@@ -1,6 +1,6 @@
 package com.fulfilment.application.monolith.products.domain.usecases;
 
-import com.fulfilment.application.monolith.products.domain.models.Product;
+import com.fulfilment.application.monolith.products.adapters.database.Product;
 import com.fulfilment.application.monolith.products.domain.ports.ProductStore;
 import com.fulfilment.application.monolith.products.domain.ports.UpdateProductOperation;
 import jakarta.enterprise.context.ApplicationScoped;

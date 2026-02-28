@@ -1,6 +1,6 @@
 package com.fulfilment.application.monolith.products.domain.ports;
 
-import com.fulfilment.application.monolith.products.domain.models.Product;
+import com.fulfilment.application.monolith.products.adapters.database.Product;
 
 /** Driving port: entry point for updating a product. */
 public interface UpdateProductOperation {

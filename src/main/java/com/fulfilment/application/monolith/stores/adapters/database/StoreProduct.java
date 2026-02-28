@@ -1,6 +1,6 @@
 package com.fulfilment.application.monolith.stores.adapters.database;
 
-import com.fulfilment.application.monolith.products.adapters.database.DbProduct;
+import com.fulfilment.application.monolith.products.adapters.database.Product;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -32,13 +32,13 @@ public class StoreProduct {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "product_id", nullable = false)
   @OnDelete(action = OnDeleteAction.CASCADE)
-  public DbProduct product;
+  public Product product;
 
   public int quantity;
 
   public StoreProduct() {}
 
-  public StoreProduct(DbStore store, DbProduct product, int quantity) {
+  public StoreProduct(DbStore store, Product product, int quantity) {
     this.store = store;
     this.product = product;
     this.quantity = quantity;
