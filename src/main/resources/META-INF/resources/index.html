@@ -1,153 +1,845 @@
 <!doctype html>
 <html>
 <head>
-    <meta charset="utf-8"/>
-    <title>Hibernate ORM with Panache quickstart - Quarkus</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/wingcss/0.1.8/wing.min.css"/>
-    <style>
-        input[type=number] {
-            width: 100%;
-            padding: 12px 20px;
-            margin: 8px 0;
-            display: inline-block;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-            -webkit-transition: .5s;
-            transition: .5s;
-            outline: 0;
-            font-family: 'Open Sans', serif;
+  <meta charset="utf-8"/>
+  <title>Fulfillment Management System</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/wingcss/0.1.8/wing.min.css"/>
+  <style>
+    body { background: #f5f5f5; }
+    .page-header { background: #2c3e50; color: #fff; padding: 20px 0; margin-bottom: 30px; }
+    .page-header h1 { color: #fff; margin: 0; }
+    .page-header p  { color: #bdc3c7; margin: 6px 0 0; }
+    .section-card {
+      background: #fff; border: 1px solid #dce1e7; border-radius: 6px;
+      padding: 24px; margin-bottom: 32px;
+    }
+    .section-card h2 { margin-top: 0; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }
+    .section-desc { color: #555; font-size: 0.92em; margin: -6px 0 16px; }
+    .subsection { margin-top: 20px; }
+    .subsection h3 { font-size: 1em; font-weight: bold; margin-bottom: 4px; color: #2c3e50; }
+    .subsection p  { font-size: 0.88em; color: #666; margin: 0 0 10px; }
+    .list-header { font-weight: bold; background: #ecf0f1; padding: 6px 4px; border-radius: 3px; margin-bottom: 4px; }
+    .list-row { padding: 5px 4px; border-bottom: 1px solid #f0f0f0; }
+    .list-row:last-child { border-bottom: none; }
+    .btn { margin-right: 4px; font-size: 0.82em; padding: 4px 10px; cursor: pointer; }
+    .btn-primary { background: #1f6feb; color: #fff; border: none; border-radius: 4px; font-weight: 700; padding: 7px 14px; }
+    .btn-primary:hover { background: #1a5fc9; color: #fff; }
+    .btn-danger { background: #e74c3c; color: #fff; border: none; border-radius: 3px; padding: 4px 10px; font-size: 0.82em; cursor: pointer; }
+    .btn-warn   { background: #e67e22; color: #fff; border: none; border-radius: 3px; padding: 4px 10px; font-size: 0.82em; cursor: pointer; }
+    .detail-box {
+      background: #eaf4fb; border-left: 4px solid #3498db;
+      padding: 12px 16px; margin-top: 12px; border-radius: 3px; font-size: 0.9em;
+    }
+    .badge-archived { background: #95a5a6; color: #fff; border-radius: 3px; padding: 2px 6px; font-size: 0.78em; margin-left: 4px; }
+    .archived-row   { opacity: 0.55; font-style: italic; }
+    .obs-link { display: inline-block; margin: 4px 8px 4px 0; padding: 6px 14px;
+                background: #27ae60; color: #fff; border-radius: 4px; text-decoration: none; font-size: 0.88em; }
+    .obs-link:hover { background: #219a52; color: #fff; }
+    .form-row { margin-bottom: 10px; }
+    label.field-label { font-size: 0.85em; color: #555; display: block; margin-bottom: 2px; }
+    select { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 4px;
+             font-family: 'Open Sans', serif; font-size: 0.95em; box-sizing: border-box; }
+    input[type=number], input[type=text] {
+      width: 100%; padding: 10px 12px; margin: 0; border: 1px solid #ccc; border-radius: 4px;
+      box-sizing: border-box; font-family: 'Open Sans', serif; font-size: 0.95em;
+    }
+    .empty-state { color: #aaa; font-style: italic; padding: 8px 0; font-size: 0.9em; }
+    hr { margin: 0; }
+  </style>
+  <script src="//ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular.min.js"></script>
+  <script type="text/javascript">
+
+    var LOCATIONS = [
+      { id: "AMSTERDAM-001", label: "Amsterdam-001  (max 5 warehouses, cap 100)" },
+      { id: "AMSTERDAM-002", label: "Amsterdam-002  (max 3 warehouses, cap 75)"  },
+      { id: "ZWOLLE-001",    label: "Zwolle-001     (max 1 warehouse,  cap 40)"  },
+      { id: "ZWOLLE-002",    label: "Zwolle-002     (max 2 warehouses, cap 50)"  },
+      { id: "TILBURG-001",   label: "Tilburg-001    (max 1 warehouse,  cap 40)"  },
+      { id: "HELMOND-001",   label: "Helmond-001    (max 1 warehouse,  cap 45)"  },
+      { id: "EINDHOVEN-001", label: "Eindhoven-001  (max 2 warehouses, cap 70)"  },
+      { id: "VETSBY-001",    label: "Vetsby-001     (max 1 warehouse,  cap 90)"  }
+    ];
+
+    var app = angular.module("FulfillmentApp", []);
+
+    // ── Product Controller ────────────────────────────────────────────────────
+    app.controller("ProductCtrl", function ($scope, $http) {
+      $scope.products = [];
+      $scope.selectedProduct = null;
+      $scope.form = { id: -1, name: "", description: "", price: null, stock: 0 };
+
+      _refresh();
+
+      $scope.save = function () {
+        var isNew = $scope.form.id === -1;
+        var url    = isNew ? '/product' : '/product/' + $scope.form.id;
+        var method = isNew ? 'POST' : 'PUT';
+        $http({ method: method, url: url,
+                data: { name: $scope.form.name, description: $scope.form.description,
+                        price: $scope.form.price, stock: $scope.form.stock },
+                headers: { 'Content-Type': 'application/json' }
+        }).then(_success, _error);
+      };
+
+      $scope.edit   = function (p) { $scope.form = { id: p.id, name: p.name,
+                                       description: p.description || "", price: p.price, stock: p.stock };
+                                     $scope.selectedProduct = null; };
+      $scope.view   = function (p) { $http.get('/product/' + p.id)
+                                       .then(function(r){ $scope.selectedProduct = r.data; }, _error); };
+      $scope.remove = function (p) { $http.delete('/product/' + p.id).then(_success, _error); };
+
+      function _refresh() {
+        $http.get('/product').then(function(r){ $scope.products = r.data; },
+                                  function(r){ console.log(r.statusText); });
+      }
+      function _success() { _refresh(); _clearForm(); }
+      function _error(r)  { alert((r.data && (r.data.error || r.data.message)) || r.statusText); }
+      function _clearForm(){ $scope.form = { id: -1, name: "", description: "", price: null, stock: 0 };
+                              $scope.selectedProduct = null; }
+    });
+
+    // ── Store Controller ──────────────────────────────────────────────────────
+    app.controller("StoreCtrl", function ($scope, $http) {
+      $scope.stores = [];
+      $scope.products = [];
+      $scope.selectedStore = null;
+      $scope.form = { id: -1, name: "", quantityProductsInStock: 0 };
+      $scope.storeProductForm = { storeId: "", productId: "", quantity: 1 };
+      $scope.storeProductLinks = [];
+
+      _refresh();
+      _refreshProducts();
+
+      $scope.save = function () {
+        var isNew = $scope.form.id === -1;
+        $http({ method: isNew ? 'POST' : 'PUT',
+                url: isNew ? '/store' : '/store/' + $scope.form.id,
+                data: _data(), headers: { 'Content-Type': 'application/json' }
+        }).then(_success, _error);
+      };
+      $scope.patch  = function () {
+        if ($scope.form.id === -1) { alert("Select a store first."); return; }
+        $http({ method: 'PATCH', url: '/store/' + $scope.form.id,
+                data: _data(), headers: { 'Content-Type': 'application/json' }
+        }).then(_success, _error);
+      };
+      $scope.edit   = function (s) { $scope.form = { id: s.id, name: s.name,
+                                       quantityProductsInStock: s.quantityProductsInStock };
+                                     $scope.selectedStore = null; };
+      $scope.view   = function (s) { $http.get('/store/' + s.id)
+                                       .then(function(r){ $scope.selectedStore = r.data; }, _error); };
+      $scope.remove = function (s) { $http.delete('/store/' + s.id).then(_success, _error); };
+      $scope.cancel = function ()  { _clearForm(); };
+      $scope.loadStoreProducts = function () {
+        var storeId = $scope.storeProductForm.storeId;
+        if (!storeId) {
+          $scope.storeProductLinks = [];
+          return;
         }
-    </style>
-    <!-- Load AngularJS -->
-    <script src="//ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular.min.js"></script>
-    <script type="text/javascript">
-      var app = angular.module("ProductManagement", []);
+        $http.get('/store/' + storeId + '/products')
+             .then(function(r){ $scope.storeProductLinks = r.data; }, _error);
+      };
+      $scope.selectStoreForMappings = function (s) {
+        $scope.storeProductForm.storeId = s.id;
+        $scope.loadStoreProducts();
+      };
+      $scope.upsertStoreProduct = function () {
+        var storeId = $scope.storeProductForm.storeId;
+        var productId = $scope.storeProductForm.productId;
+        var quantity = Number($scope.storeProductForm.quantity);
+        if (!storeId || !productId || Number.isNaN(quantity) || quantity <= 0) {
+          alert("Select store/product and provide a positive quantity.");
+          return;
+        }
+        $http.put('/store/' + storeId + '/products/' + productId, { quantity: quantity })
+             .then(function () {
+               $scope.storeProductForm.productId = "";
+               $scope.storeProductForm.quantity = null;
+               $scope.loadStoreProducts();
+               _refresh();
+               _refreshProducts();
+             }, _error);
+      };
+      $scope.removeStoreProduct = function (link) {
+        var storeId = $scope.storeProductForm.storeId;
+        if (!storeId) {
+          return;
+        }
+        $http.delete('/store/' + storeId + '/products/' + link.productId)
+             .then(function () { $scope.loadStoreProducts(); _refresh(); _refreshProducts(); }, _error);
+      };
 
-      //Controller Part
-      app.controller("ProductManagementController", function ($scope, $http) {
-
-        //Initialize page with default data which is blank in this example
-        $scope.products = [];
-
-        $scope.form = {
-          id: -1,
-          name: ""
-        };
-
-        //Now load the data from server
-        _refreshPageData();
-
-        //HTTP POST/PUT methods for add/edit products
-        $scope.update = function () {
-          var method = "";
-          var url = "";
-          var data = {};
-          if ($scope.form.id == -1) {
-            //Id is absent so add products - POST operation
-            method = "POST";
-            url = '/product';
-            data.name = $scope.form.name;
-          } else {
-            //If Id is present, it's edit operation - PUT operation
-            method = "PUT";
-            url = '/product/' + $scope.form.id;
-            data.name = $scope.form.name;
-          }
-
-          $http({
-            method: method,
-            url: url,
-            data: angular.toJson(data),
-            headers: {
-              'Content-Type': 'application/json'
+      function _data()   { return { name: $scope.form.name,
+                                    quantityProductsInStock: $scope.form.quantityProductsInStock }; }
+      function _refresh(){
+        $http.get('/store').then(function(r){
+          $scope.stores = r.data;
+          // keep edit form in sync: if a store is currently loaded, update its computed quantity
+          if ($scope.form.id !== -1) {
+            for (var i = 0; i < r.data.length; i++) {
+              if (r.data[i].id == $scope.form.id) {
+                $scope.form.quantityProductsInStock = r.data[i].quantityProductsInStock;
+                break;
+              }
             }
-          }).then(_success, _error);
-        };
+          }
+        }, function(r){ console.log(r.statusText); });
+      }
+      function _refreshProducts(){ $http.get('/product').then(function(r){ $scope.products = r.data; },
+                                                              function(r){ console.log(r.statusText); }); }
+      function _success(){ _refresh(); _clearForm(); }
+      function _error(r) { alert((r.data && (r.data.error || r.data.message)) || r.statusText); }
+      function _clearForm(){ $scope.form = { id: -1, name: "", quantityProductsInStock: 0 };
+                              $scope.selectedStore = null; }
+    });
 
-        //HTTP DELETE- delete product by id
-        $scope.remove = function (product) {
-          $http({
-            method: 'DELETE',
-            url: '/product/' + product.id
-          }).then(_success, _error);
-        };
+    // ── Warehouse Controller ──────────────────────────────────────────────────
+    app.controller("WarehouseCtrl", function ($scope, $http) {
+      $scope.locations    = LOCATIONS;
+      $scope.warehouses   = [];
+      $scope.products = [];
+      $scope.searchResults = [];
+      $scope.selectedWarehouse = null;
+      $scope.isReplacing  = false;
+      $scope.form = { businessUnitCode: "", location: "", capacity: 0, stock: 0 };
+      $scope.searchForm = { location: "", minCapacity: "", maxCapacity: "",
+                            sortBy: "createdAt", sortOrder: "asc", page: 0, pageSize: 10 };
+      $scope.warehouseProductForm = { businessUnitCode: "", productId: "", quantity: 1 };
+      $scope.warehouseProductLinks = [];
+      $scope.searchCache = {};
+      $scope.locationSuggestions = [];
+      $scope.filteredLocationSuggestions = [];
 
-        //In case of edit products, populate form with product data
-        $scope.edit = function (product) {
-          $scope.form.name = product.name;
-          $scope.form.id = product.id;
-        };
+      _refresh();
+      _refreshProducts();
 
-          /* Private Methods */
-        //HTTP GET- get all products collection
-        function _refreshPageData() {
-          $http({
-            method: 'GET',
-            url: '/product'
-          }).then(function successCallback(response) {
-            $scope.products = response.data;
-          }, function errorCallback(response) {
-            console.log(response.statusText);
-          });
+      $scope.save = function () {
+        var url = $scope.isReplacing
+          ? '/warehouse/' + $scope.form.businessUnitCode + '/replacement'
+          : '/warehouse';
+        $http({ method: 'POST', url: url,
+                data: { businessUnitCode: $scope.form.businessUnitCode,
+                        location: $scope.form.location,
+                        capacity: $scope.form.capacity,
+                        stock: $scope.form.stock },
+                headers: { 'Content-Type': 'application/json' }
+        }).then(_success, _error);
+      };
+
+      $scope.view    = function (w) { $http.get('/warehouse/' + w.businessUnitCode)
+                                        .then(function(r){ $scope.selectedWarehouse = r.data; }, _error); };
+      $scope.archive = function (w) { if (!confirm('Archive ' + w.businessUnitCode + '?')) return;
+                                      $http.delete('/warehouse/' + w.businessUnitCode).then(_success, _error); };
+      $scope.replace = function (w) { $scope.isReplacing = true;
+                                      $scope.form = { businessUnitCode: w.businessUnitCode,
+                                                      location: w.location,
+                                                      capacity: w.capacity, stock: w.stock };
+                                      $scope.selectedWarehouse = null; };
+      $scope.cancel  = function ()  { _clearForm(); };
+      $scope.loadWarehouseProducts = function () {
+        var code = $scope.warehouseProductForm.businessUnitCode;
+        if (!code) {
+          $scope.warehouseProductLinks = [];
+          return;
         }
-
-        function _success(response) {
-          _refreshPageData();
-          _clearForm()
+        $http.get('/warehouse/' + encodeURIComponent(code) + '/products')
+             .then(function(r){ $scope.warehouseProductLinks = r.data; }, _error);
+      };
+      $scope.selectWarehouseForMappings = function (w) {
+        if (w.archivedAt) {
+          alert("Archived warehouses are read-only for product mapping.");
+          return;
         }
-
-        function _error(response) {
-          alert(response.data.message || response.statusText);
+        $scope.warehouseProductForm.businessUnitCode = w.businessUnitCode;
+        $scope.loadWarehouseProducts();
+      };
+      $scope.upsertWarehouseProduct = function () {
+        var code = $scope.warehouseProductForm.businessUnitCode;
+        var productId = $scope.warehouseProductForm.productId;
+        var quantity = Number($scope.warehouseProductForm.quantity);
+        if (!code || !productId || Number.isNaN(quantity) || quantity <= 0) {
+          alert("Select warehouse/product and provide a positive quantity.");
+          return;
         }
-
-        //Clear the form
-        function _clearForm() {
-          $scope.form.name = "";
-          $scope.form.id = -1;
+        $http.put('/warehouse/' + encodeURIComponent(code) + '/products/' + productId, { quantity: quantity })
+             .then(function () {
+               $scope.warehouseProductForm.productId = "";
+               $scope.warehouseProductForm.quantity = null;
+               $scope.loadWarehouseProducts();
+               _refresh();
+               _refreshProducts();
+             }, _error);
+      };
+      $scope.removeWarehouseProduct = function (link) {
+        var code = $scope.warehouseProductForm.businessUnitCode;
+        if (!code) {
+          return;
         }
-      });
-    </script>
+        $http.delete('/warehouse/' + encodeURIComponent(code) + '/products/' + link.productId)
+             .then(function () { $scope.loadWarehouseProducts(); _refresh(); _refreshProducts(); }, _error);
+      };
+
+      $scope.search  = function () {
+        var q = [];
+        var location = (($scope.searchForm.location || '') + '').trim();
+        var minCapacity = _toQueryNumber($scope.searchForm.minCapacity);
+        var maxCapacity = _toQueryNumber($scope.searchForm.maxCapacity);
+        var sortBy = $scope.searchForm.sortBy || 'createdAt';
+        var sortOrder = $scope.searchForm.sortOrder || 'asc';
+        var page = _toQueryNumber($scope.searchForm.page);
+        var pageSize = _toQueryNumber($scope.searchForm.pageSize);
+
+        if (location) q.push('location=' + encodeURIComponent(location));
+        if (minCapacity !== null) q.push('minCapacity=' + minCapacity);
+        if (maxCapacity !== null) q.push('maxCapacity=' + maxCapacity);
+        q.push('sortBy=' + sortBy);
+        q.push('sortOrder=' + sortOrder);
+        q.push('page=' + (page === null ? 0 : page));
+        q.push('pageSize=' + (pageSize === null ? 10 : pageSize));
+
+        var queryString = q.join('&');
+        if ($scope.searchCache[queryString]) {
+          $scope.searchResults = $scope.searchCache[queryString];
+          return;
+        }
+        $http.get('/warehouse/search?' + queryString)
+             .then(function(r){
+               $scope.searchResults = r.data;
+               $scope.searchCache[queryString] = r.data;
+             }, _error);
+      };
+      $scope.refreshLocationSuggestions = function () {
+        var typed = (($scope.searchForm.location || '') + '').trim().toUpperCase();
+        if (!typed) {
+          $scope.filteredLocationSuggestions = $scope.locationSuggestions.slice(0, 10);
+          return;
+        }
+        $scope.filteredLocationSuggestions = $scope.locationSuggestions
+          .filter(function(loc){ return loc.toUpperCase().indexOf(typed) !== -1; })
+          .slice(0, 10);
+      };
+      $scope.clearSearch = function () { $scope.searchResults = [];
+                                         $scope.searchForm = { location: "", minCapacity: "", maxCapacity: "",
+                                                               sortBy: "createdAt", sortOrder: "asc", page: 0, pageSize: 10 };
+                                         $scope.refreshLocationSuggestions(); };
+
+      function _refresh(){
+        $http.get('/warehouse').then(function(r){
+          $scope.warehouses = r.data;
+          _buildLocationSuggestions();
+          // keep edit/replace form in sync: if a warehouse is currently loaded, update its stock
+          if ($scope.form.businessUnitCode) {
+            for (var i = 0; i < r.data.length; i++) {
+              if (r.data[i].businessUnitCode === $scope.form.businessUnitCode) {
+                $scope.form.stock = r.data[i].stock;
+                break;
+              }
+            }
+          }
+        }, function(r){ console.log(r.statusText); });
+      }
+      function _refreshProducts(){ $http.get('/product').then(function(r){ $scope.products = r.data; },
+                                                              function(r){ console.log(r.statusText); }); }
+      function _success(){ _refresh(); _clearForm(); }
+      function _error(r) { alert((r.data && (r.data.error || r.data.message)) || r.statusText); }
+      function _clearForm(){ $scope.form = { businessUnitCode: "", location: "", capacity: 0, stock: 0 };
+                              $scope.isReplacing = false; $scope.selectedWarehouse = null; }
+      function _toQueryNumber(value) {
+        if (value === null || value === undefined || value === '' || value === 'null') {
+          return null;
+        }
+        var parsed = Number(value);
+        return Number.isNaN(parsed) ? null : parsed;
+      }
+      function _buildLocationSuggestions() {
+        var map = {};
+        LOCATIONS.forEach(function (loc) { map[loc.id] = true; });
+        ($scope.warehouses || []).forEach(function (w) {
+          if (w.location) {
+            map[w.location] = true;
+          }
+        });
+        $scope.locationSuggestions = Object.keys(map).sort();
+        $scope.refreshLocationSuggestions();
+      }
+    });
+
+  </script>
 </head>
-<body ng-app="ProductManagement" ng-controller="ProductManagementController">
 
-<div class="container">
-    <h1>Java Code Assignment</h1>
-    <p>This application demonstrates how a Quarkus application implements a CRUD endpoint to manage products using Hibernate ORM with Panache.
-        This management interface invokes the CRUD service endpoint, which interacts with a database using JPA and several other well known libraries.
-    </p>
-
-    <h3>Add/Edit an Product to the Warehouse</h3>
-    <form ng-submit="update()">
-        <div class="row">
-            <div class="col-6"><input type="text" placeholder="Name" ng-model="form.name" size="60"/></div>
-        </div>
-        <input type="submit" value="Save"/>
-    </form>
-
-    <h3>Product List</h3>
-    <div class="row">
-        <div class="col-2">Name</div>
-    </div>
-    <div class="row" ng-repeat="product in products">
-        <div class="col-2">{{ product.name }}</div>
-        <div class="col-8"><a ng-click="edit( product )" class="btn">Edit</a> <a ng-click="remove( product )" class="btn">Remove</a>
-        </div>
-    </div>
-
-    <p>Behind the scenes, we have:
-        <ul>
-            <li>Hibernate ORM with Panache taking care of all CRUD operations</li>
-            <li>RESTEasy powering the REST API</li>
-            <li>ArC, a CDI based dependency injection framework</li>
-            <li>the Narayana Transaction Manager coordinating all transactions</li>
-            <li>Agroal, the high performance Datasource implementation</li>
-            <li>Infinispan used as Hibernate 2nd level caching: enabled on both entities and queries</li>
-            <li>The Undertow webserver</li>
-            <li>Some magic bytecode generation plugged in the compiler...</li>
-        </ul>
-    </p>
+<body ng-app="FulfillmentApp">
+<div class="page-header">
+  <div class="container">
+    <h1>Fulfillment Management System</h1>
+    <p>Manage warehouses, stores, and product inventory across multiple distribution locations.</p>
+  </div>
 </div>
 
+<div class="container">
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       PRODUCT MANAGEMENT
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-card" ng-controller="ProductCtrl">
+    <h2>📦 Product Management</h2>
+    <p class="section-desc">
+      Products are the physical inventory items distributed through this system.
+      Each product tracks a global stock level, a unit price, and an optional description.
+      Creating a product does <strong>not</strong> automatically attach it to a store or warehouse; mappings are managed explicitly below.
+    </p>
+
+    <div class="subsection">
+      <h3>Add / Edit a Product</h3>
+      <p>Fill in the fields below. Leaving <em>id</em> blank creates a new product (POST); selecting <em>Edit</em> in the list prepopulates the form for an update (PUT).</p>
+      <form ng-submit="save()">
+        <div class="row form-row">
+          <div class="col-4">
+            <label class="field-label">Name *</label>
+            <input type="text" placeholder="e.g. KALLAX Shelf" ng-model="form.name"/>
+          </div>
+          <div class="col-4">
+            <label class="field-label">Description</label>
+            <input type="text" placeholder="Short product description" ng-model="form.description"/>
+          </div>
+        </div>
+        <div class="row form-row">
+          <div class="col-2">
+            <label class="field-label">Price (€)</label>
+            <input type="number" placeholder="0.00" step="0.01" ng-model="form.price"/>
+          </div>
+          <div class="col-2">
+            <label class="field-label">Stock Quantity</label>
+            <input type="number" placeholder="0" ng-model="form.stock"/>
+          </div>
+        </div>
+        <input type="submit" value="💾 Save Product (POST / PUT)" class="btn btn-primary"/>
+        <button type="button" class="btn" ng-click="cancel = true; form = {id:-1,name:'',description:'',price:null,stock:0}; selectedProduct=null">Clear</button>
+      </form>
+    </div>
+
+    <div class="subsection">
+      <h3>Product List</h3>
+      <p>All products sorted by name. <em>View</em> fetches live details via GET /product/{id}.</p>
+      <div class="row list-header">
+        <div class="col-3">Name</div>
+        <div class="col-3">Description</div>
+        <div class="col-1">Price €</div>
+        <div class="col-1">Stock</div>
+        <div class="col-4">&nbsp;</div>
+      </div>
+      <div class="row list-row" ng-repeat="p in products">
+        <div class="col-3">{{ p.name }}</div>
+        <div class="col-3">{{ p.description || '—' }}</div>
+        <div class="col-1">{{ p.price || '—' }}</div>
+        <div class="col-1">{{ p.stock }}</div>
+        <div class="col-4">
+          <a ng-click="view(p)"   class="btn">View</a>
+          <a ng-click="edit(p)"   class="btn">Edit</a>
+          <button ng-click="remove(p)" class="btn-danger">Delete</button>
+        </div>
+      </div>
+      <div class="empty-state" ng-if="products.length === 0">No products found.</div>
+    </div>
+
+    <div class="detail-box" ng-if="selectedProduct">
+      <strong>GET /product/{{ selectedProduct.id }}</strong><br/>
+      <strong>Name:</strong> {{ selectedProduct.name }}<br/>
+      <strong>Description:</strong> {{ selectedProduct.description || '—' }}<br/>
+      <strong>Price:</strong> € {{ selectedProduct.price || '—' }}<br/>
+      <strong>Stock:</strong> {{ selectedProduct.stock }}
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       STORE MANAGEMENT
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-card" ng-controller="StoreCtrl">
+    <h2>🏪 Store Management</h2>
+    <p class="section-desc">
+      Stores are retail outlets that receive products from warehouses.
+      Every successful create, update, or delete is automatically synchronised with the legacy store management system
+      <em>after</em> the database transaction commits — guaranteeing the legacy system never sees uncommitted data.
+      Store-product links are explicit and can be created later from the mapping section.
+    </p>
+
+    <div class="subsection">
+      <h3>Add / Edit a Store</h3>
+      <p>
+        <strong>Save (POST/PUT)</strong> does a full create or replace.
+        <strong>Partial Update (PATCH)</strong> selectively updates only the provided fields.
+        Click <em>Edit</em> in the list to populate the form for an existing store.
+      </p>
+      <form ng-submit="save()">
+        <div class="row form-row">
+          <div class="col-4">
+            <label class="field-label">Store Name *</label>
+            <input type="text" placeholder="e.g. Amsterdam Central Store" ng-model="form.name"/>
+          </div>
+          <div class="col-3">
+            <label class="field-label">Quantity Products In Stock
+              <small style="color:#888" ng-if="form.id !== -1"> — auto-computed from product mappings</small>
+            </label>
+            <input type="number" placeholder="0" ng-model="form.quantityProductsInStock"
+                   ng-readonly="form.id !== -1"
+                   ng-style="form.id !== -1 ? {'background':'#f9f9f9','color':'#666','cursor':'not-allowed'} : {}"/>
+          </div>
+        </div>
+        <input type="submit" value="💾 Save Store (POST / PUT)" class="btn btn-primary"/>
+        <button type="button" class="btn" ng-click="patch()">✏️ Partial Update (PATCH)</button>
+        <button type="button" class="btn" ng-click="cancel()">Cancel</button>
+      </form>
+    </div>
+
+    <div class="subsection">
+      <h3>Store List</h3>
+      <p>All stores sorted by name. Deleting a store also notifies the legacy system post-commit.</p>
+      <div class="row list-header">
+        <div class="col-3">Name</div>
+        <div class="col-2">Products In Stock</div>
+        <div class="col-5">&nbsp;</div>
+      </div>
+      <div class="row list-row" ng-repeat="s in stores">
+        <div class="col-3">{{ s.name }}</div>
+        <div class="col-2">{{ s.quantityProductsInStock }}</div>
+        <div class="col-5">
+          <a ng-click="view(s)"   class="btn">View</a>
+          <a ng-click="edit(s)"   class="btn">Edit</a>
+          <button ng-click="remove(s)" class="btn-danger">Delete</button>
+        </div>
+      </div>
+      <div class="empty-state" ng-if="stores.length === 0">No stores found.</div>
+    </div>
+
+    <div class="detail-box" ng-if="selectedStore">
+      <strong>GET /store/{{ selectedStore.id }}</strong><br/>
+      <strong>Name:</strong> {{ selectedStore.name }}<br/>
+      <strong>Quantity Products In Stock:</strong> {{ selectedStore.quantityProductsInStock }}
+    </div>
+
+    <div class="subsection">
+      <h3>Store ↔ Product Mapping</h3>
+      <p>
+        Products are linked to stores only when you map them here (not during product creation).
+        PUT updates/creates the mapping and automatically recalculates <em>Quantity Products In Stock</em> for consistency.
+      </p>
+      <div class="row form-row">
+        <div class="col-3">
+          <label class="field-label">Store *</label>
+          <select ng-model="storeProductForm.storeId" ng-change="loadStoreProducts()">
+            <option value="">-- select store --</option>
+            <option ng-repeat="s in stores" value="{{ s.id }}">{{ s.name }} (ID {{ s.id }})</option>
+          </select>
+        </div>
+        <div class="col-3">
+          <label class="field-label">Product *</label>
+          <select ng-model="storeProductForm.productId">
+            <option value="">-- select product --</option>
+            <option ng-repeat="p in products" value="{{ p.id }}">{{ p.name }} — avail: {{ p.stock }} (ID {{ p.id }})</option>
+          </select>
+        </div>
+        <div class="col-2">
+          <label class="field-label">Quantity *</label>
+          <input type="number" min="1" ng-model="storeProductForm.quantity"/>
+        </div>
+      </div>
+      <button type="button" class="btn btn-primary" ng-click="upsertStoreProduct()">💾 Save Mapping</button>
+      <button type="button" class="btn" ng-click="loadStoreProducts()">Reload Mappings</button>
+
+      <div ng-if="storeProductLinks.length > 0" style="margin-top:14px">
+        <div class="row list-header">
+          <div class="col-4">Product</div>
+          <div class="col-2">Quantity</div>
+          <div class="col-4">&nbsp;</div>
+        </div>
+        <div class="row list-row" ng-repeat="m in storeProductLinks">
+          <div class="col-4">{{ m.productName }} (ID {{ m.productId }})</div>
+          <div class="col-2">{{ m.quantity }}</div>
+          <div class="col-4">
+            <button type="button" class="btn-danger" ng-click="removeStoreProduct(m)">Remove</button>
+          </div>
+        </div>
+      </div>
+      <div class="empty-state" ng-if="storeProductForm.storeId && storeProductLinks.length === 0">No mapped products for selected store.</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       WAREHOUSE MANAGEMENT
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-card" ng-controller="WarehouseCtrl">
+    <h2>🏭 Warehouse Management</h2>
+    <p class="section-desc">
+      Warehouses are storage facilities tied to a predefined geographic location.
+      Capacity must not exceed the location's maximum, stock must not exceed capacity,
+      and business unit codes must be unique. Archived warehouses are permanently soft-deleted.
+      <em>Replace</em> atomically archives the current warehouse and activates a new one at the same code.
+      Warehouse-product links are explicit and can be added/updated later through mapping.
+    </p>
+
+    <div class="subsection">
+      <h3 ng-if="!isReplacing">Create a Warehouse</h3>
+      <h3 ng-if="isReplacing">Replace Warehouse: <em>{{ form.businessUnitCode }}</em></h3>
+      <p ng-if="!isReplacing">POST /warehouse — creates a new active warehouse at the selected location.</p>
+      <p ng-if="isReplacing">
+        POST /warehouse/{{ form.businessUnitCode }}/replacement — archives the current entry and creates a successor.
+        The business unit code is locked; change the location or capacity as needed.
+      </p>
+      <form ng-submit="save()">
+        <div class="row form-row">
+          <div class="col-4">
+            <label class="field-label">Business Unit Code *</label>
+            <input type="text" placeholder="e.g. MWH.042" ng-model="form.businessUnitCode" ng-disabled="isReplacing"/>
+          </div>
+          <div class="col-4">
+            <label class="field-label">Location *</label>
+            <select ng-model="form.location">
+              <option value="">-- select location --</option>
+              <option ng-repeat="loc in locations" value="{{ loc.id }}">{{ loc.label }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="row form-row">
+          <div class="col-2">
+            <label class="field-label">Capacity</label>
+            <input type="number" placeholder="0" ng-model="form.capacity"/>
+          </div>
+          <div class="col-2">
+            <label class="field-label">Stock
+              <small style="color:#888" ng-if="isReplacing"> — auto-computed from mappings</small>
+            </label>
+            <input type="number" placeholder="0" ng-model="form.stock"
+                   ng-readonly="isReplacing"
+                   ng-style="isReplacing ? {'background':'#f9f9f9','color':'#666','cursor':'not-allowed'} : {}"/>
+          </div>
+        </div>
+        <input type="submit" value="💾 Save Warehouse" class="btn btn-primary"/>
+        <button type="button" class="btn" ng-if="isReplacing" ng-click="cancel()">Cancel Replace</button>
+      </form>
+    </div>
+
+    <div class="subsection">
+      <h3>Warehouse List</h3>
+      <p>
+        <em>View</em> fetches live details via GET /warehouse/{code}.
+        <em>Replace</em> prepopulates the form to create a successor.
+        <em>Archive</em> soft-deletes the warehouse (DELETE /warehouse/{code}) — irreversible.
+      </p>
+      <div class="row list-header">
+        <div class="col-2">Business Unit Code</div>
+        <div class="col-2">Location</div>
+        <div class="col-1">Cap.</div>
+        <div class="col-1">Stock</div>
+        <div class="col-6">&nbsp;</div>
+      </div>
+      <div class="row list-row" ng-repeat="w in warehouses" ng-class="{'archived-row': w.archivedAt}">
+        <div class="col-2">{{ w.businessUnitCode }} <span class="badge-archived" ng-if="w.archivedAt">ARCHIVED</span></div>
+        <div class="col-2">{{ w.location }}</div>
+        <div class="col-1">{{ w.capacity }}</div>
+        <div class="col-1">{{ w.stock }}</div>
+        <div class="col-6">
+          <a ng-click="view(w)"    class="btn">View</a>
+          <a ng-click="replace(w)" class="btn" ng-if="!w.archivedAt">Replace</a>
+          <button ng-click="archive(w)" class="btn-warn" ng-if="!w.archivedAt">Archive</button>
+        </div>
+      </div>
+      <div class="empty-state" ng-if="warehouses.length === 0">No warehouses found.</div>
+    </div>
+
+    <div class="detail-box" ng-if="selectedWarehouse">
+      <strong>GET /warehouse/{{ selectedWarehouse.businessUnitCode }}</strong><br/>
+      <strong>Business Unit Code:</strong> {{ selectedWarehouse.businessUnitCode }}<br/>
+      <strong>Location:</strong> {{ selectedWarehouse.location }}<br/>
+      <strong>Capacity:</strong> {{ selectedWarehouse.capacity }}<br/>
+      <strong>Stock:</strong> {{ selectedWarehouse.stock }}
+    </div>
+
+    <div class="subsection">
+      <h3>Warehouse ↔ Product Mapping</h3>
+      <p>
+        Link products to an active warehouse after creation.
+        PUT mapping recalculates warehouse stock from mapped quantities and rejects totals beyond capacity.
+      </p>
+      <div class="row form-row">
+        <div class="col-3">
+          <label class="field-label">Warehouse *</label>
+          <select ng-model="warehouseProductForm.businessUnitCode" ng-change="loadWarehouseProducts()">
+            <option value="">-- select active warehouse --</option>
+            <option ng-repeat="w in warehouses" ng-if="!w.archivedAt" value="{{ w.businessUnitCode }}">
+              {{ w.businessUnitCode }} ({{ w.location }})
+            </option>
+          </select>
+        </div>
+        <div class="col-3">
+          <label class="field-label">Product *</label>
+          <select ng-model="warehouseProductForm.productId">
+            <option value="">-- select product --</option>
+            <option ng-repeat="p in products" value="{{ p.id }}">{{ p.name }} — avail: {{ p.stock }} (ID {{ p.id }})</option>
+          </select>
+        </div>
+        <div class="col-2">
+          <label class="field-label">Quantity *</label>
+          <input type="number" min="1" ng-model="warehouseProductForm.quantity"/>
+        </div>
+      </div>
+      <button type="button" class="btn btn-primary" ng-click="upsertWarehouseProduct()">💾 Save Mapping</button>
+      <button type="button" class="btn" ng-click="loadWarehouseProducts()">Reload Mappings</button>
+
+      <div ng-if="warehouseProductLinks.length > 0" style="margin-top:14px">
+        <div class="row list-header">
+          <div class="col-4">Product</div>
+          <div class="col-2">Quantity</div>
+          <div class="col-4">&nbsp;</div>
+        </div>
+        <div class="row list-row" ng-repeat="m in warehouseProductLinks">
+          <div class="col-4">{{ m.productName }} (ID {{ m.productId }})</div>
+          <div class="col-2">{{ m.quantity }}</div>
+          <div class="col-4">
+            <button type="button" class="btn-danger" ng-click="removeWarehouseProduct(m)">Remove</button>
+          </div>
+        </div>
+      </div>
+      <div class="empty-state" ng-if="warehouseProductForm.businessUnitCode && warehouseProductLinks.length === 0">No mapped products for selected warehouse.</div>
+    </div>
+
+    <div class="subsection">
+      <h3>Search &amp; Filter Warehouses</h3>
+      <p>GET /warehouse/search — returns only <strong>active</strong> (non-archived) warehouses. Location now supports partial matching (e.g., <em>ZWOLLE</em>).</p>
+      <form ng-submit="search()">
+        <div class="row form-row">
+          <div class="col-3">
+            <label class="field-label">Location Filter</label>
+            <input type="text" list="location-suggestions" placeholder="Type location (e.g. ZWOLLE)"
+                   ng-model="searchForm.location" ng-change="refreshLocationSuggestions()"/>
+            <datalist id="location-suggestions">
+              <option ng-repeat="loc in filteredLocationSuggestions" value="{{ loc }}">{{ loc }}</option>
+            </datalist>
+          </div>
+          <div class="col-2">
+            <label class="field-label">Min Capacity</label>
+            <input type="number" placeholder="0" ng-model="searchForm.minCapacity"/>
+          </div>
+          <div class="col-2">
+            <label class="field-label">Max Capacity</label>
+            <input type="number" placeholder="100" ng-model="searchForm.maxCapacity"/>
+          </div>
+        </div>
+        <div class="row form-row">
+          <div class="col-2">
+            <label class="field-label">Sort By</label>
+            <select ng-model="searchForm.sortBy">
+              <option value="createdAt">Created At</option>
+              <option value="capacity">Capacity</option>
+            </select>
+          </div>
+          <div class="col-2">
+            <label class="field-label">Sort Order</label>
+            <select ng-model="searchForm.sortOrder">
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+          </div>
+          <div class="col-2">
+            <label class="field-label">Page (0-based)</label>
+            <input type="number" placeholder="0" ng-model="searchForm.page"/>
+          </div>
+          <div class="col-2">
+            <label class="field-label">Page Size (max 100)</label>
+            <input type="number" placeholder="10" ng-model="searchForm.pageSize"/>
+          </div>
+        </div>
+        <input type="submit" value="🔍 Search Warehouses" class="btn btn-primary"/>
+        <button type="button" class="btn" ng-click="clearSearch()">Clear</button>
+      </form>
+
+      <div ng-if="searchResults.length > 0" style="margin-top:14px">
+        <div class="row list-header">
+          <div class="col-2">Business Unit Code</div>
+          <div class="col-2">Location</div>
+          <div class="col-1">Cap.</div>
+          <div class="col-1">Stock</div>
+        </div>
+        <div class="row list-row" ng-repeat="w in searchResults">
+          <div class="col-2">{{ w.businessUnitCode }}</div>
+          <div class="col-2">{{ w.location }}</div>
+          <div class="col-1">{{ w.capacity }}</div>
+          <div class="col-1">{{ w.stock }}</div>
+        </div>
+      </div>
+      <div class="empty-state" ng-if="searchResults.length === 0 && searchForm.location">No results for current filters.</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       OBSERVABILITY
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-card">
+    <h2>📊 Observability</h2>
+    <p class="section-desc">
+      The application exposes health checks (SmallRye Health) and Prometheus-compatible metrics (Micrometer).
+      Point your Prometheus scraper at <code>/q/metrics</code> — no extra configuration needed in dev mode.
+    </p>
+
+    <div class="subsection">
+      <h3>Health Checks</h3>
+      <p>
+        SmallRye Health provides liveness and readiness probes suitable for Kubernetes.
+        The <em>/q/health/live</em> endpoint returns UP when the JVM is healthy;
+        <em>/q/health/ready</em> also verifies database connectivity.
+      </p>
+      <a class="obs-link" href="/q/health"       target="_blank">🩺 /q/health</a>
+      <a class="obs-link" href="/q/health/live"   target="_blank">🟢 /q/health/live</a>
+      <a class="obs-link" href="/q/health/ready"  target="_blank">🔵 /q/health/ready</a>
+    </div>
+
+    <div class="subsection">
+      <h3>Prometheus Metrics</h3>
+      <p>
+        Micrometer counters and timers are registered under the <code>fulfillment.*</code> prefix.
+        Key metrics include <code>fulfillment.warehouse.created</code>, <code>fulfillment.store.deleted</code>,
+        and <code>fulfillment.warehouse.search.duration</code>.
+        Instrument resources by injecting <code>FulfillmentMetrics</code> and calling the record methods.
+      </p>
+      <a class="obs-link" href="/q/metrics" target="_blank">📈 /q/metrics (Prometheus)</a>
+    </div>
+
+    <div class="subsection">
+      <h3>API Documentation</h3>
+      <p>
+        The Warehouse API is OpenAPI-first (spec at <em>openapi/warehouse-openapi.yaml</em>).
+        Product and Store endpoints are hand-coded. All are browsable and executable via Swagger UI.
+      </p>
+      <a class="obs-link" href="/q/swagger-ui" target="_blank">📖 Swagger UI</a>
+      <a class="obs-link" href="/q/openapi"    target="_blank">📄 OpenAPI JSON</a>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TECH STACK
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="section-card">
+    <h2>⚙️ Technology Stack</h2>
+    <div class="row">
+      <div class="col-6">
+        <ul>
+          <li><strong>Quarkus 3.13.3</strong> — supersonic, subatomic Java</li>
+          <li><strong>Hibernate ORM + Panache</strong> — JPA with optimistic locking (<code>@Version</code>)</li>
+          <li><strong>PostgreSQL</strong> (prod) / <strong>H2</strong> (test via Dev Services)</li>
+          <li><strong>ArC (CDI)</strong> — dependency injection + CDI events for post-commit store sync</li>
+          <li><strong>Narayana</strong> — JTA transaction manager</li>
+        </ul>
+      </div>
+      <div class="col-6">
+        <ul>
+          <li><strong>RESTEasy Reactive</strong> — JAX-RS REST layer</li>
+          <li><strong>SmallRye OpenAPI</strong> — Swagger UI + OpenAPI spec generation</li>
+          <li><strong>SmallRye Health</strong> — liveness &amp; readiness probes</li>
+          <li><strong>Micrometer + Prometheus</strong> — application metrics</li>
+          <li><strong>JUnit 5 + Testcontainers + Mockito</strong> — test suite (80%+ coverage)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
 </body>
 </html>

@@ -1,5 +1,7 @@
 package com.fulfilment.application.monolith.stores;
 
+import com.fulfilment.application.monolith.stores.domain.models.Store;
+
 public class StoreCreatedEvent {
   private final Store store;
 
