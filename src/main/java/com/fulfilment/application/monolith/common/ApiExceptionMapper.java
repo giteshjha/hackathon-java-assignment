@@ -3,6 +3,7 @@ package com.fulfilment.application.monolith.common;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.inject.Inject;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
@@ -23,15 +24,30 @@ public class ApiExceptionMapper implements ExceptionMapper<Exception> {
     int code = 500;
     if (exception instanceof WebApplicationException webApplicationException) {
       code = webApplicationException.getResponse().getStatus();
+    } else if (isCausedByOptimisticLock(exception)) {
+      code = 409;
     }
 
     ObjectNode exceptionJson = objectMapper.createObjectNode();
     exceptionJson.put("exceptionType", exception.getClass().getName());
     exceptionJson.put("code", code);
-    if (exception.getMessage() != null) {
-      exceptionJson.put("error", exception.getMessage());
+    String message = code == 409
+        ? "The resource was modified by another request. Please reload and try again."
+        : exception.getMessage();
+    if (message != null) {
+      exceptionJson.put("error", message);
     }
 
     return Response.status(code).entity(exceptionJson).build();
+  }
+
+  /** Walks the cause chain to detect an optimistic locking failure. */
+  private boolean isCausedByOptimisticLock(Throwable t) {
+    for (Throwable cause = t; cause != null; cause = cause.getCause()) {
+      if (cause instanceof OptimisticLockException) {
+        return true;
+      }
+    }
+    return false;
   }
 }
