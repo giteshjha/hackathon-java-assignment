@@ -7,7 +7,6 @@ A production-grade fulfillment management system built with **Quarkus 3.13.3**, 
 ```bash
 # Start in dev mode (auto-reloads on code change)
 ./mvnw quarkus:dev
-
 # Open the UI
 open http://localhost:8080/index.html
 
