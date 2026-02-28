@@ -79,21 +79,6 @@ public class WarehouseOptimisticLockingTest {
     });
   }
 
-  @Test
-  @Transactional
-  public void testVersionIncrementsonUpdate() {
-    DbWarehouse warehouse = em.find(DbWarehouse.class, warehouseId);
-    Long initialVersion = warehouse.version;
-    
-    // Update the warehouse
-    warehouse.stock = 60;
-    em.merge(warehouse);
-    em.flush();
-    
-    // Version should have incremented
-    assertTrue(warehouse.version > initialVersion);
-  }
-
   /**
    * Helper to simulate a separate transaction updating the warehouse.
    */

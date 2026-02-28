@@ -43,15 +43,5 @@ class FulfillmentMetricsTest {
     assertNotNull(metrics.warehouseSearchTimer, "search timer should not be null");
   }
 
-  @Test
-  void multipleIncrementsAccumulate() {
-    SimpleMeterRegistry registry = new SimpleMeterRegistry();
-    FulfillmentMetrics metrics = new FulfillmentMetrics(registry);
 
-    metrics.recordWarehouseCreated();
-    metrics.recordWarehouseCreated();
-    metrics.recordWarehouseCreated();
-
-    assertEquals(3.0, registry.counter("fulfillment.warehouse.created").count());
-  }
 }

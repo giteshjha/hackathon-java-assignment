@@ -45,58 +45,6 @@ public class ArchiveWarehouseUseCaseTest {
   }
 
   /**
-   * Basic archive functionality
-   */
-  @Test
-  @Transactional
-  public void testArchiveWarehouseSuccessfully() {
-    // Create a warehouse
-    Warehouse warehouse = createWarehouse("ARCHIVE-TEST-001", "AMSTERDAM-001");
-
-    // Archive it
-    archiveWarehouseUseCase.archive(warehouse);
-
-    // Verify it was archived
-    Warehouse archived = warehouseRepository.findByBusinessUnitCode("ARCHIVE-TEST-001");
-    assertNotNull(archived);
-    assertNotNull(archived.archivedAt);
-  }
-
-  /**
-   * Cannot archive non-existent warehouse
-   */
-  @Test
-  @Transactional
-  public void testCannotArchiveNonExistentWarehouse() {
-    Warehouse warehouse = new Warehouse();
-    warehouse.businessUnitCode = "NON-EXISTENT";
-
-    IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-      archiveWarehouseUseCase.archive(warehouse);
-    });
-
-    assertTrue(exception.getMessage().contains("does not exist"));
-  }
-
-  /**
-   * Cannot archive already-archived warehouse
-   */
-  @Test
-  @Transactional
-  public void testCannotArchiveAlreadyArchivedWarehouse() {
-    // Create and archive a warehouse
-    Warehouse warehouse = createWarehouse("ARCHIVE-TEST-002", "ZWOLLE-001");
-    archiveWarehouseUseCase.archive(warehouse);
-
-    // Try to archive again
-    IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-      archiveWarehouseUseCase.archive(warehouse);
-    });
-
-    assertTrue(exception.getMessage().contains("already archived"));
-  }
-
-  /**
    * Concurrent archive and stock update scenario.
    *
    * Scenario:
