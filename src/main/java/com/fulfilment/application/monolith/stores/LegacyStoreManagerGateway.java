@@ -17,6 +17,11 @@ public class LegacyStoreManagerGateway {
     writeToFile(store);
   }
 
+  public void deleteStoreOnLegacySystem(Store store) {
+    // just to emulate as this would send this to a legacy system, let's write a temp file with the
+    writeToFile(store);
+  }
+
   private void writeToFile(Store store) {
     try {
       // Step 1: Create a temporary file

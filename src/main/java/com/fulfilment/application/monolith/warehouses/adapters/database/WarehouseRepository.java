@@ -3,8 +3,13 @@ package com.fulfilment.application.monolith.warehouses.adapters.database;
 import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class WarehouseRepository implements WarehouseStore, PanacheRepository<DbWarehouse> {
@@ -15,6 +20,7 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
   }
 
   @Override
+  @Transactional
   public void create(Warehouse warehouse) {
     DbWarehouse dbWarehouse = new DbWarehouse();
     dbWarehouse.businessUnitCode = warehouse.businessUnitCode;
@@ -28,31 +34,70 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
   }
 
   @Override
+  @Transactional
   public void update(Warehouse warehouse) {
-    getEntityManager().createQuery(
-      "UPDATE DbWarehouse w SET w.location = :loc, w.capacity = :cap, " +
-      "w.stock = :stock, w.archivedAt = :archived WHERE w.businessUnitCode = :code")
-      .setParameter("loc", warehouse.location)
-      .setParameter("cap", warehouse.capacity)
-      .setParameter("stock", warehouse.stock)
-      .setParameter("archived", warehouse.archivedAt)
-      .setParameter("code", warehouse.businessUnitCode)
-      .executeUpdate();
+    DbWarehouse existing = find("businessUnitCode", warehouse.businessUnitCode).firstResult();
+    if (existing == null) {
+      throw new IllegalArgumentException(
+          "Warehouse with business unit code '" + warehouse.businessUnitCode + "' does not exist");
+    }
 
-    // Clear persistence context to see updates in subsequent queries
+    existing.location = warehouse.location;
+    existing.capacity = warehouse.capacity;
+    existing.stock = warehouse.stock;
+    // Preserve archived state unless the caller explicitly sets an archive timestamp.
+    if (warehouse.archivedAt != null) {
+      existing.archivedAt = warehouse.archivedAt;
+    }
+
     getEntityManager().flush();
-    getEntityManager().clear();
   }
 
   @Override
+  @Transactional
   public void remove(Warehouse warehouse) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'remove'");
+    delete("businessUnitCode", warehouse.businessUnitCode);
   }
 
   @Override
+  @Transactional
   public Warehouse findByBusinessUnitCode(String buCode) {
     DbWarehouse dbWarehouse = find("businessUnitCode", buCode).firstResult();
     return dbWarehouse != null ? dbWarehouse.toWarehouse() : null;
+  }
+
+  @Transactional
+  public List<Warehouse> searchActive(
+      String location,
+      Integer minCapacity,
+      Integer maxCapacity,
+      String sortBy,
+      String sortOrder,
+      int page,
+      int pageSize) {
+    StringBuilder query = new StringBuilder("archivedAt is null");
+    Map<String, Object> params = new HashMap<>();
+
+    if (location != null && !location.isBlank()) {
+      query.append(" and upper(location) like :locationPattern");
+      params.put("locationPattern", "%" + location.trim().toUpperCase() + "%");
+    }
+    if (minCapacity != null) {
+      query.append(" and capacity >= :minCapacity");
+      params.put("minCapacity", minCapacity);
+    }
+    if (maxCapacity != null) {
+      query.append(" and capacity <= :maxCapacity");
+      params.put("maxCapacity", maxCapacity);
+    }
+
+    Sort sort = "capacity".equals(sortBy) ? Sort.by("capacity") : Sort.by("createdAt");
+    if ("desc".equals(sortOrder)) {
+      sort = sort.descending();
+    }
+
+    var panacheQuery = find(query.toString(), sort, params);
+    panacheQuery.page(Page.of(page, pageSize));
+    return panacheQuery.list().stream().map(DbWarehouse::toWarehouse).toList();
   }
 }

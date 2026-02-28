@@ -58,4 +58,31 @@ public class StoreTransactionIntegrationTest {
     // Legacy system should NOT be notified for a failed transaction
     verify(legacyGateway, never()).createStoreOnLegacySystem(any(Store.class));
   }
+
+  @Test
+  public void testLegacySystemNotifiedOnDelete() throws InterruptedException {
+    Mockito.reset(legacyGateway);
+
+    String uniqueName = "IntegrationTest_Delete_" + System.currentTimeMillis();
+
+    Long id =
+        given()
+            .contentType("application/json")
+            .body("{\"name\": \"" + uniqueName + "\", \"quantityProductsInStock\": 3}")
+            .when().post("/store")
+            .then()
+            .statusCode(201)
+            .extract()
+            .jsonPath().getLong("id");
+
+    Thread.sleep(500);
+    Mockito.reset(legacyGateway);
+
+    given().when().delete("/store/" + id).then().statusCode(204);
+
+    Thread.sleep(1000);
+
+    // Legacy system must receive the delete notification after a successful commit
+    verify(legacyGateway, times(1)).deleteStoreOnLegacySystem(any(Store.class));
+  }
 }
